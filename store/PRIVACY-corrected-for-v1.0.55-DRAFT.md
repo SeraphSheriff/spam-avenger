@@ -107,4 +107,4 @@ code, or the contents of your emails:
 
 ## Contact
 
-Open an issue at https://github.com/SeraphSheriff/spamSentinel
+Open an issue at https://github.com/SeraphSheriff/spam-avenger
