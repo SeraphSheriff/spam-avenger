@@ -63,17 +63,119 @@
     return el ? el.getAttribute("data-legacy-message-id") : null;
   }
 
+  // v1.0.63: the ik text scans, hoisted out of ikParam so the async
+  // bootstrap hunt below can run the identical patterns over raw
+  // server HTML. Serialized markup escapes & as &amp; — match both.
+  function scanIkText(text) {
+    if (!text) return null;
+    var m = text.match(/[?&]ik=([a-f0-9]{6,})/) ||
+            text.match(/&amp;ik=([a-f0-9]{6,})/) ||
+            text.match(/"ik"\s*:\s*"([a-f0-9]{6,})"/);
+    return m ? m[1] : null;
+  }
+
+  // Split a JS array literal's contents on top-level commas only —
+  // string- and nesting-aware, so "a,b" or [1,2] inside an element
+  // never splits it.
+  function splitTopLevel(s) {
+    var parts = [], depth = 0, inStr = null, esc = false, cur = "";
+    for (var i = 0; i < s.length; i++) {
+      var c = s[i];
+      if (inStr) {
+        cur += c;
+        if (esc) esc = false;
+        else if (c === "\\") esc = true;
+        else if (c === inStr) inStr = null;
+        continue;
+      }
+      if (c === '"' || c === "'") { inStr = c; cur += c; continue; }
+      if (c === "[" || c === "{") depth++;
+      else if (c === "]" || c === "}") depth--;
+      if (c === "," && depth === 0) { parts.push(cur); cur = ""; continue; }
+      cur += c;
+    }
+    if (cur !== "" || s.length) parts.push(cur);
+    return parts;
+  }
+
+  function unquoteJs(tok) {
+    var t = String(tok == null ? "" : tok).replace(/^\s+|\s+$/g, "");
+    if (t.length >= 2 &&
+        ((t[0] === '"' && t[t.length - 1] === '"') ||
+         (t[0] === "'" && t[t.length - 1] === "'"))) {
+      return t.slice(1, -1).replace(/\\(.)/g, "$1");
+    }
+    return t;
+  }
+
+  // v1.0.63: pull ik out of a serialized GLOBALS array literal
+  // ("GLOBALS=[...]"), where the key sits at index 9 with no label
+  // for the regex scans to catch. The shape is validated before the
+  // value is trusted.
+  function ikFromGlobalsLiteral(text) {
+    if (!text) return null;
+    var from = 0;
+    for (var attempt = 0; attempt < 5; attempt++) {
+      var gi = text.indexOf("GLOBALS", from);
+      if (gi === -1) return null;
+      from = gi + 7;
+      var start = text.indexOf("[", gi);
+      if (start === -1) return null;
+      var depth = 0, inStr = null, esc = false, end = -1;
+      for (var i = start; i < text.length; i++) {
+        var c = text[i];
+        if (inStr) {
+          if (esc) esc = false;
+          else if (c === "\\") esc = true;
+          else if (c === inStr) inStr = null;
+          continue;
+        }
+        if (c === '"' || c === "'") { inStr = c; continue; }
+        if (c === "[") depth++;
+        else if (c === "]") { depth--; if (depth === 0) { end = i; break; } }
+      }
+      if (end === -1) continue;
+      var items = splitTopLevel(text.slice(start + 1, end));
+      if (items.length < 10) continue;
+      var v = unquoteJs(items[9]);
+      if (v && /^[a-f0-9]{6,}$/.test(v)) return v;
+    }
+    return null;
+  }
+
+  // Every text-based ik source, in order: labeled forms first, then
+  // the positional GLOBALS extraction.
+  function ikFromRawText(text) {
+    return scanIkText(text) || ikFromGlobalsLiteral(text);
+  }
+
+  // v1.0.63: fetch the raw Gmail bootstrap HTML and hunt the key in
+  // the un-serialized text. Chrome content scripts live in an
+  // isolated world — no wrappedJSObject — and the DOM Gmail renders
+  // may not expose the key to the sync scans at all (Oct 21 field
+  // failure: two ik-less show-original requests, both HTTP 404).
+  // The server's own HTML still ships the bootstrap the page booted
+  // from, escapes and all, exactly as delivered.
+  function fetchIkBootstrap(acct) {
+    var p;
+    try {
+      p = fetch("https://mail.google.com/mail/u/" + acct + "/",
+        { credentials: "include" });
+    } catch (e) {
+      return Promise.resolve(null);
+    }
+    return Promise.resolve(p).then(function (res) {
+      if (!res.ok) return null;
+      return res.text();
+    }, function () { return null; }).then(function (text) {
+      if (typeof text !== "string") return null;
+      return ikFromRawText(text);
+    });
+  }
+
   function ikParam() {
     // Gmail's session key ("ik") is required by its show-original endpoint.
     // Hunt for it in several places; page markup varies by Gmail version.
-    function scan(text) {
-      if (!text) return null;
-      // Note: serialized markup escapes & as &amp; — match both forms.
-      var m = text.match(/[?&]ik=([a-f0-9]{6,})/) ||
-              text.match(/&amp;ik=([a-f0-9]{6,})/) ||
-              text.match(/"ik"\s*:\s*"([a-f0-9]{6,})"/);
-      return m ? m[1] : null;
-    }
     var found = null;
     try {
       // Page-context globals (classic Gmail exposes GLOBALS[9] === ik).
@@ -83,12 +185,14 @@
         return String(pg.GLOBALS[9]);
       }
     } catch (e) {}
-    try { found = scan(document.documentElement.innerHTML); } catch (e) {}
+    var pageHtml = "";
+    try { pageHtml = document.documentElement.innerHTML; } catch (e) {}
+    found = ikFromRawText(pageHtml);
     if (found) return found;
     try {
       var scripts = document.querySelectorAll("script");
       for (var i = 0; i < scripts.length; i++) {
-        found = scan(scripts[i].textContent || "");
+        found = ikFromRawText(scripts[i].textContent || "");
         if (found) return found;
       }
     } catch (e) {}
@@ -1254,8 +1358,11 @@
     })();
   }
 
-  function fetchOriginal(mid, onStep) {
-    var ik = ikParam();
+  function fetchOriginal(mid, onStep, ikIn) {
+    // v1.0.63: the caller (fetchOriginalWithRetry) resolves the key —
+    // sync hunts plus the async bootstrap fetch — and passes it in.
+    // A call without ikIn keeps the old sync-only behavior.
+    var ik = (typeof ikIn !== "undefined") ? ikIn : ikParam();
     var acct = accountIndex();
     var urls = [];
     if (ik) {
@@ -1387,6 +1494,46 @@
     return attempt(0);
   }
 
+  // v1.0.63: resolve the session key, run the fetch, and on a
+  // headers failure make ONE fresh-key retry. Resolution order:
+  // the sync hunts (instant, and in Firefox they always hit); only
+  // when they come up empty does the async bootstrap fetch run —
+  // the Chrome path. The retry covers a stale scraped key: if the
+  // bootstrap produces a DIFFERENT key than the one that just
+  // failed, the ik-form request runs once more with it. When no
+  // key exists anywhere, the error says so instead of leaving the
+  // user staring at bare 404s.
+  function fetchOriginalWithRetry(mid, onStep) {
+    var acct = accountIndex();
+    function step0(s) { if (onStep) { try { onStep(s); } catch (e) {} } }
+    var firstIk = ikParam();
+    var start;
+    if (firstIk) {
+      start = Promise.resolve(firstIk);
+    } else {
+      step0("Fetching Gmail session key\u2026");
+      start = fetchIkBootstrap(acct).then(function (b) {
+        firstIk = b;
+        return b;
+      });
+    }
+    return start.then(function (ik) {
+      return fetchOriginal(mid, onStep, ik);
+    }).catch(function (err) {
+      var msg = "";
+      try { msg = String((err && err.message) || err); } catch (x) {}
+      if (msg.indexOf("wouldn't hand over") === -1) throw err;
+      return fetchIkBootstrap(acct).then(function (ik2) {
+        if (ik2 && ik2 !== firstIk) return fetchOriginal(mid, onStep, ik2);
+        if (!firstIk && !ik2) {
+          throw new Error(msg + " No Gmail session key could be found" +
+            " — reload Gmail and try again.");
+        }
+        throw err;
+      });
+    });
+  }
+
   function onShieldClick() {
     var mid = currentMessageId();
     if (!mid) {
@@ -1400,7 +1547,7 @@
     prog("Finding the open message\u2026");
     var p;
     try {
-      p = fetchOriginal(mid, prog);
+      p = fetchOriginalWithRetry(mid, prog);
     } catch (e) {
       p = Promise.reject(e);
     }
