@@ -53,10 +53,15 @@ That's it. The button only appears when you're looking at an email.
   instead of opening a dead menu); **Forward phish to APWG + CISA**
   opens Gmail's forward with the phish attached, addressed to
   reportphishing@apwg.org and contact@cisa.dhs.gov — you review and send.
-- Knows which hosts ignore emailed complaints: if the abuse contact
-  belongs to OVHcloud, the panel says so upfront and links their
-  [abuse web form](https://www.ovhcloud.com/en/abuse/) next to the
-  complaint buttons, instead of letting you find out by autoresponder.
+- Knows which hosts ignore emailed complaints: if the sending host
+  is OVHcloud or a hyperscaler cloud (Google Cloud, AWS, Azure), the
+  panel skips the email entirely and shows a **form kit** instead —
+  everything the host's abuse form asks for, prepared in one
+  paste-ready evidence block (summary, source IP, date, the full
+  headers), plus a button that opens the form, e.g.
+  [OVHcloud's](https://www.ovhcloud.com/en/abuse/). Filing through
+  the form from the start removes the desk's "use our form"
+  deflection — and saves you finding out by autoresponder.
 
 It will **not** generate a complaint against the big mailbox providers'
 own servers (Google, Microsoft, Yahoo, etc.) — their IPs show up in

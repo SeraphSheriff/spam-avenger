@@ -1,5 +1,5 @@
 /*
- * Spam Avenger for Gmail — report-form filler (v1.0.62)
+ * Spam Avenger for Gmail — report-form filler (v1.0.64)
  *
  * Runs only on the Google Safe Browsing report page and the FTC's
  * ReportFraud wizard. When the user clicks "Report to FTC" or

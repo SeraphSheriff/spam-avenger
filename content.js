@@ -26,6 +26,39 @@
   var BTN_ID = "spam-avenger-btn";
   var PANEL_ID = "spam-avenger-panel";
 
+  // Form lanes (v1.0.64): some hosts act ONLY on reports filed
+  // through their own abuse form — the hyperscaler clouds
+  // (lib/analyze.js sets a.hyperscaler for Google Cloud / AWS /
+  // Azure blocks) and OVHcloud (the v1.0.27 contact/org match in
+  // renderResult). For those hosts the panel builds NO email
+  // complaint (Michael's call, 2026-10-28): an emailed complaint
+  // is deflected to the form anyway, so the section is a FORM
+  // KIT instead — the prepared evidence block (lib
+  // buildFormEvidence) plus a button opening the provider's
+  // form below. Form URLs verified live 2026-10-28. The AWS
+  // entry is the abuse-report page AWS itself prints in its
+  // blocks' RDAP remarks ("For fastest response, please submit
+  // abuse reports via the AWS webform").
+  var HYPER_FORM_HINTS = {
+    google: { label: "Google Cloud",
+      url: "https://support.google.com/code/contact/cloud_platform_report",
+      linkText: "support.google.com/code/contact/cloud_platform_report" },
+    aws: { label: "Amazon AWS",
+      url: "https://repost.aws/knowledge-center/report-aws-abuse",
+      linkText: "repost.aws/knowledge-center/report-aws-abuse" },
+    azure: { label: "Microsoft Azure",
+      url: "https://msrc.microsoft.com/report/abuse",
+      linkText: "msrc.microsoft.com/report/abuse" }
+  };
+
+  // The fourth form lane: OVHcloud (same shape as the table
+  // above; its detection is the v1.0.27 contact/org match in
+  // renderResult, not a.hyperscaler). The URL is the one the
+  // retired v1.0.27 hint chip linked.
+  var OVH_FORM_HINT = { label: "OVHcloud",
+    url: "https://www.ovhcloud.com/en/abuse/",
+    linkText: "ovhcloud.com/en/abuse" };
+
   // Tiny DOM builder: h("div", {class: "x", id: "y"}, childEl, "text", ...)
   function h(tag, attrs) {
     var el = document.createElement(tag);
@@ -349,22 +382,32 @@
   // Updates the panel button directly.
   function gmailForwardPhish() {
     var rb = document.getElementById("sf-fwd-phish");
+    // v1.0.64: sf-fwd-phish is an accordion action row now, not a
+    // plain button — its label lives in a .sf-acc-label span next
+    // to the \u2197 glyph. Status writes go to the span so the glyph
+    // survives; fall back to the element itself if the span is
+    // ever absent.
+    function setLabel(t) {
+      if (!rb) return;
+      var lbl = rb.querySelector(".sf-acc-label");
+      if (lbl) lbl.textContent = t; else rb.textContent = t;
+    }
     function fail(dbg) {
       if (rb) {
         rb.disabled = true;
-        rb.textContent = "Couldn't open forward (" + String(dbg).slice(0, 160) +
-          ") \u2014 forward it manually";
+        setLabel("Couldn't open forward (" + String(dbg).slice(0, 160) +
+          ") \u2014 forward it manually");
       }
       return { ok: false, dbg: dbg };
     }
     function done() {
       if (rb) {
-        rb.textContent = "Forward addressed \u2014 review and hit Send";
+        setLabel("Forward addressed \u2014 review and hit Send");
         // Re-arm: if the user closed the compose without sending,
         // they get the button back instead of a dead panel.
         setTimeout(function () {
           rb.disabled = false;
-          rb.textContent = "Forward phish to APWG + CISA";
+          setLabel("Forward phish to APWG + CISA");
         }, 12000);
       }
       return { ok: true };
@@ -623,7 +666,7 @@
           nearbyButtonLabels(msgEl, 12).join(" / "));
       }
       var sendBefore = findSendButtons();
-      if (rb) { rb.disabled = true; rb.textContent = "Opening forward\u2026"; }
+      if (rb) { rb.disabled = true; setLabel("Opening forward\u2026"); }
       more.click();
       var tries = 0;
       var timer = setInterval(function () {
@@ -692,6 +735,92 @@
         h("p", null, step || "Working\u2026")));
   }
 
+  // v1.0.64: the accordion factory, ported from Spam Avenger
+  // for Outlook v1.2.0 (Michael's design call there, applied
+  // here at his Oct 28 order): the panel's tasks render as a
+  // stack of full-width toggles with everything collapsed;
+  // clicking one expands its panel directly below it, opening
+  // another closes the first (strictly one open at a time),
+  // and clicking the open section's toggle closes it. A fresh
+  // render builds a fresh stack, so a new message always
+  // starts all-collapsed with no leftover state. Expanding a
+  // section NEVER fires its action — every lane's work stays
+  // behind the inner buttons, exactly as before. One exception,
+  // Michael's call (2026-10-28): a lane whose section would hold
+  // nothing but a button repeating its own title gets an
+  // actionRow instead — a lookalike row that fires on click.
+  // makeAccordion(stackEl) -> { section(id, toggleClass, label),
+  //                             actionRow(id, toggleClass, label, onFire) }
+  // label is a string or an array of strings/elements (the PID
+  // toggle bolds one word, like its retired fight toggle did).
+  function makeAccordion(stack) {
+    var currentSection = null;
+    function section(id, toggleClass, label) {
+      var caret = h("span", { "class": "sf-acc-caret" }, "\u25B8");
+      var tgl = h("button", {
+        "class": "sf-acc-toggle " + toggleClass, "type": "button",
+        "id": id + "-toggle", "aria-expanded": "false",
+        "aria-controls": id + "-panel"
+      }, caret);
+      var parts = Array.isArray(label) ? label : [label];
+      parts.forEach(function (p) {
+        tgl.appendChild(
+          typeof p === "string" ? document.createTextNode(p) : p);
+      });
+      var panel = h("div", { "class": "sf-acc-panel", "id": id + "-panel" });
+      panel.style.display = "none";
+      var sec = { toggle: tgl, panel: panel };
+      sec.setOpen = function (open) {
+        panel.style.display = open ? "" : "none";
+        caret.textContent = open ? "\u25BE" : "\u25B8";
+        tgl.setAttribute("aria-expanded", open ? "true" : "false");
+      };
+      tgl.addEventListener("click", function () {
+        if (currentSection === sec) {
+          sec.setOpen(false);
+          currentSection = null;
+        } else {
+          if (currentSection) currentSection.setOpen(false);
+          sec.setOpen(true);
+          currentSection = sec;
+        }
+      });
+      stack.appendChild(tgl);
+      stack.appendChild(panel);
+      return sec;
+    }
+    // v1.0.64 (Michael's call, 2026-10-28, in the test6 retest):
+    // a lane whose section would hold NOTHING but a button
+    // repeating the section's own title doesn't get a section —
+    // it gets this lookalike row that FIRES on click. First
+    // user: Safe Browsing; FTC and Forward followed under the
+    // same ruling the same day. The glyph is \u2197 (opens a
+    // page), not the \u25B8 caret, which promises an expansion.
+    // The label rides in a .sf-acc-label span so a lane whose
+    // label doubles as its status surface (Forward) can rewrite
+    // the words without eating the glyph. btnId overrides the
+    // button's id for a lane whose machinery looks it up by an
+    // established id (Forward: sf-fwd-phish).
+    function actionRow(id, toggleClass, label, onFire, btnId) {
+      var glyph = h("span", { "class": "sf-acc-caret" }, "\u2197");
+      var btn = h("button", {
+        "class": "sf-acc-toggle " + toggleClass, "type": "button",
+        "id": btnId || (id + "-toggle")
+      }, glyph);
+      var labelEl = h("span", { "class": "sf-acc-label" });
+      var parts = Array.isArray(label) ? label : [label];
+      parts.forEach(function (p) {
+        labelEl.appendChild(
+          typeof p === "string" ? document.createTextNode(p) : p);
+      });
+      btn.appendChild(labelEl);
+      btn.addEventListener("click", onFire);
+      stack.appendChild(btn);
+      return { toggle: btn, labelEl: labelEl };
+    }
+    return { section: section, actionRow: actionRow };
+  }
+
   function renderResult(body, a) {
     clearEl(body);
     // v1.0.36: the info block (meta grid, makeup callout, Red flags)
@@ -754,47 +883,108 @@
     }
     // v1.0.48: which button colors this render actually puts on
     // screen — the legend below is built from these flags, so it
-    // never explains a color that isn't there (with no abuse
-    // contact there is no Copy button, hence no orange entry).
-    var showGreen = false, showYellow = false, showOrange = false;
+    // never explains a color that isn't there.
+    var showGreen = false, showBlue = false;
+    // v1.0.64: the task stack — every lane below renders as an
+    // accordion section (makeAccordion), in the Outlook order.
+    // Status warnings that used to sit between the lanes are
+    // appended to the stack directly, never inside a section.
+    var stack = h("div", { "class": "sf-stack", "id": "sf-stack" });
+    body.appendChild(stack);
+    var acc = makeAccordion(stack);
+    // The Gmail-native report button is built inside the
+    // big-provider branch below, but its section sits fifth in
+    // the stack (after Forward), so the branch hands the button
+    // up through this variable.
+    var reportPhishBtn = null;
     if (a.complaint) {
       var c = a.complaint;
+      // Form lanes first (v1.0.64, Michael's call 2026-10-28):
+      // hyperscaler clouds and OVHcloud act only on reports sent
+      // through their own abuse form — building the email anyway
+      // just hands the desk its deflection excuse ("use our
+      // form"), so those panels get the FORM KIT instead: the
+      // prepared evidence block plus one button that copies the
+      // evidence and opens the form. No email text, no Open-in-Gmail, no hint chip —
+      // the section IS the guidance. Detection is unchanged:
+      // the lib's a.hyperscaler flag, and the v1.0.27 OVH match
+      // on the abuse contact/org. The hyperscaler check runs
+      // first and wins if both ever fire (impossible in
+      // practice — the networks are disjoint).
+      var formLane = null;
+      if (a.hyperscaler && HYPER_FORM_HINTS[a.hyperscaler]) {
+        formLane = HYPER_FORM_HINTS[a.hyperscaler];
+      } else if (/ovh/i.test(c.to + " " + (a.org || ""))) {
+        formLane = OVH_FORM_HINT;
+      }
+      if (formLane) {
+        var kitSec = acc.section("sf-sec-complaint", "sf-btn-blue",
+          "Abuse report \u2014 use their form");
+        var kw = h("div", { "class": "sf-complaint" });
+        kw.appendChild(h("p", { "class": "sf-note" },
+          formLane.label + " only acts on reports sent through " +
+          "its own abuse form \u2014 an emailed complaint gets " +
+          "deflected to that form anyway. Everything the form " +
+          "asks for is prepared in the box below: the button " +
+          "copies it and opens the form \u2014 paste it into the " +
+          "form's details field, then submit the form."));
+        kw.appendChild(h("b", null,
+          "Form evidence \u2014 paste into the " + formLane.label +
+          " abuse form"));
+        var eta = h("textarea", { id: "sf-evidence-text" });
+        eta.readOnly = true;
+        eta.value = window.SpamAvenger.buildFormEvidence(a) || "";
+        kw.appendChild(eta);
+        // v1.0.64 (Michael's call, 2026-10-28, after his live
+        // test): ONE button does the whole lane — it copies the
+        // evidence to the clipboard, then opens the form, so the
+        // user's only job on the form is Ctrl+V. (The Copy button
+        // cut from the email lane stays cut: there, Open in
+        // Gmail does the work. Here the lane IS copy-and-paste,
+        // so the copy earns its place — folded into this button.)
+        var formBtn = h("button", { id: "sf-open-abuse-form",
+          "class": "sf-btn-blue", "type": "button" },
+          "Copy evidence & open the " + formLane.label + " abuse form");
+        showBlue = true; // the form button is a blue control
+        formBtn.addEventListener("click", function () {
+          var copied = false;
+          try {
+            eta.focus();
+            eta.select();
+            copied = document.execCommand("copy");
+          } catch (e) {}
+          if (!copied && navigator.clipboard) {
+            navigator.clipboard.writeText(eta.value).catch(function () {});
+            copied = true; // best-effort; the box text stays selected
+          }
+          var origLabel = formBtn.textContent;
+          formBtn.textContent = copied
+            ? "Copied! The form is open \u2014 paste into its details field (Ctrl+V)"
+            : "The form is open \u2014 copy the box text above and paste it in";
+          setTimeout(function () { formBtn.textContent = origLabel; }, 6000);
+          window.open(formLane.url, "_blank", "noopener");
+        });
+        kw.appendChild(h("div", { "class": "sf-actions" }, formBtn));
+        kitSec.panel.appendChild(kw);
+      } else {
+      var compSec = acc.section("sf-sec-complaint", "sf-btn-green",
+        "Abuse complaint \u2014 ready to send");
       var cw = h("div", { "class": "sf-complaint" },
         h("b", null, "Ready-to-send complaint"));
       var ta = h("textarea", { id: "sf-complaint-text" });
       ta.readOnly = true;
       ta.value = "To: " + c.to + "\nSubject: " + c.subject + "\n\n" + c.body;
       cw.appendChild(ta);
-      // Some hosts (OVHcloud, confirmed 2026-10-15) autorespond to emailed
-      // complaints with "use our web form" and never act on the email.
-      // Warn upfront so the user goes straight to the form.
-      if (/ovh/i.test(c.to + " " + (a.org || ""))) {
-        var ovhNote = h("p", { "class": "sf-warn" },
-          "Heads up: this server belongs to OVHcloud, and their abuse desk " +
-          "ignores emailed complaints \u2014 they want their web form instead: ");
-        ovhNote.appendChild(h("a", {
-          href: "https://www.ovhcloud.com/en/abuse/",
-          "class": "sf-ovh-btn",
-          target: "_blank", rel: "noopener"
-        }, "ovhcloud.com/en/abuse"));
-        showYellow = true; // the OVH form chip is a yellow control
-        cw.appendChild(ovhNote);
-      }
-      var copyBtn = h("button", { id: "sf-copy",
-        "class": "sf-btn-orange" }, "Copy complaint \u2014 paste it into an email");
+      // v1.0.64 (Michael’s call, 2026-10-28): the orange "Copy
+      // complaint" button is gone — real users never used it,
+      // and anyone technical enough to want the raw text can
+      // copy it straight from the textarea above. "Open in
+      // Gmail" is the one send path.
       var compBtn = h("button", { id: "sf-compose",
         "class": "sf-btn-green" }, "Open in Gmail \u2014 just click Send");
-      showOrange = true; // Copy complaint
       showGreen = true; // Open in Gmail
-      cw.appendChild(h("div", { "class": "sf-actions" }, copyBtn, compBtn));
-      body.appendChild(cw);
-      copyBtn.addEventListener("click", function () {
-        ta.select();
-        try { document.execCommand("copy"); } catch (e) {}
-        if (navigator.clipboard) navigator.clipboard.writeText(ta.value).catch(function () {});
-        copyBtn.textContent = "Copied!";
-        setTimeout(function () { copyBtn.textContent = "Copy complaint \u2014 paste it into an email"; }, 1500);
-      });
+      cw.appendChild(h("div", { "class": "sf-actions" }, compBtn));
+      compSec.panel.appendChild(cw);
       compBtn.addEventListener("click", function () {
         // v1.0.58: a complaint carrying full headers can exceed
         // Gmail's compose-link length limit and die on a bare
@@ -814,12 +1004,13 @@
         }
         window.open(plan.url, "_blank", "noopener");
       });
+      }
     } else if (a.ip && !a.skipComplaint) {
-      body.appendChild(h("p", { "class": "sf-warn" },
+      stack.appendChild(h("p", { "class": "sf-warn" },
         "No published abuse contact for this IP. " +
         "Report the links below via Google Safe Browsing instead."));
     } else if (a.skipComplaint) {
-      body.appendChild(h("p", { "class": "sf-warn" },
+      stack.appendChild(h("p", { "class": "sf-warn" },
         a.providerAdvice ||
         ("This came from a big mailbox provider\u2019s own servers \u2014 " +
          "no complaint generated (it would hit the wrong target).")));
@@ -850,49 +1041,57 @@
               ") \u2014 use the three-dot menu manually";
           }
         });
-        body.appendChild(h("div", { "class": "sf-actions" }, rb));
+        reportPhishBtn = rb;
       }
     }
     // v1.0.38: color-code legend, right above the report buttons
     // and OUTSIDE the collapsed details block, so a first-time
-    // user learns what green/yellow mean before they have to pick.
-    // v1.0.44: orange entry appended — the Copy path has no guide
-    // after the click, so it gets its own color and its own line.
+    // user learns what green/blue mean before they have to pick.
     // v1.0.48: the legend is built from the show* flags set above,
-    // listing ONLY the colors this render actually uses — with no
-    // abuse contact there is no orange button on screen, so the
-    // orange entry is dropped (the report row below always renders,
-    // so green and yellow are guaranteed by it: FTC is yellow,
+    // listing ONLY the colors this render actually uses (the
+    // report row below always renders, so green and blue are
+    // guaranteed by it: FTC is blue,
     // Safe Browsing and Forward are green).
+    // v1.0.64: "the report row" is the accordion stack now —
+    // the legend is inserted directly above it, and green and
+    // blue are guaranteed by the FTC / Safe Browsing /
+    // Forward section toggles, which always render.
     showGreen = true;
-    showYellow = true;
+    showBlue = true;
     var legend = h("p", { "class": "sf-legend" }, "Button colors: ");
     var legendEntries = [];
     if (showGreen) legendEntries.push(["sf-dot-green",
       " green \u2014 Spam Avenger does the work; you just review and send."]);
-    if (showYellow) legendEntries.push(["sf-dot-yellow",
-      " yellow \u2014 needs a few steps from you, and I'll guide you through them."]);
-    if (showOrange) legendEntries.push(["sf-dot-orange",
-      " orange \u2014 you're on your own with this one; no guide after the click."]);
+    if (showBlue) legendEntries.push(["sf-dot-blue",
+      " blue \u2014 needs a few steps from you, and I'll guide you through them."]);
     legendEntries.forEach(function (e, i) {
       legend.appendChild(h("span", { "class": e[0] }, "\u25CF"));
       legend.appendChild(document.createTextNode(
         e[1] + (i < legendEntries.length - 1 ? " " : "")));
     });
-    body.appendChild(legend);
-    var links = h("div", { "class": "sf-links" },
-      h("b", null, "Also report it: "));
-    body.appendChild(links);
+    // v1.0.64: the legend is inserted directly above the
+    // accordion stack — the section toggles carry the colors
+    // now. The old "Also report it:" label div is gone: the
+    // toggles are the labels.
+    body.insertBefore(legend, stack);
     // A status line under the report buttons confirming, in plain
     // user language, whether the case data was saved for the
     // report form before the form page opens. (v1.0.31–34 this was
     // a diagnostic readout with link counts; v1.0.35 made it
     // user-facing — see the setStashStatus calls below.)
-    var stashStatus = h("p", { "class": "sf-fine", id: "sf-stash-status" },
-      "");
-    function setStashStatus(msg) {
-      try { stashStatus.textContent = msg; } catch (e) {}
+    // v1.0.64: one status line PER report lane: a status written
+    // for the FTC lane must land with the FTC lane (directly
+    // under its row), not in one shared line under a row of
+    // buttons that no longer exists.
+    function mkStashStatus(id) {
+      var el = h("p", { "class": "sf-fine sf-status", id: id }, "");
+      return {
+        el: el,
+        set: function (msg) { try { el.textContent = msg; } catch (e) {} }
+      };
     }
+    var ftcStatus = mkStashStatus("sf-ftc-status");
+    var sbStatus = mkStashStatus("sf-sb-status");
     // v1.0.30: the report-form links are proper action BUTTONS now.
     // On click: no default navigation — the handler stashes the case
     // details in chrome.storage.local and WAITS for the write to land
@@ -903,7 +1102,7 @@
     // ignores it after 30 minutes), and the user still reviews and
     // submits every report themselves. If storage is unavailable the
     // page still opens — a blank form beats a dead button.
-    function stashThenOpen(url) {
+    function stashThenOpen(url, setStashStatus) {
       return function (ev) {
         if (ev && ev.preventDefault) ev.preventDefault();
         var opened = false;
@@ -959,20 +1158,45 @@
     // "Report Now" href (checked 2026-10-17) — so the button
     // opens the homepage and reportfill.js's guide line walks the
     // user in from there.
-    var ftcBtn = h("button", { id: "sf-report-ftc",
-      "class": "sf-btn-yellow" }, "Report to FTC");
-    ftcBtn.addEventListener("click",
-      stashThenOpen("https://reportfraud.ftc.gov/"));
-    var sbBtn = h("button", { id: "sf-report-sb",
-      "class": "sf-btn-green" }, "Report to Google Safe Browsing");
-    sbBtn.addEventListener("click", stashThenOpen(
-      "https://safebrowsing.google.com/safebrowsing/report_phish/"));
-    body.appendChild(h("div", { "class": "sf-actions" }, ftcBtn, sbBtn));
-    body.appendChild(stashStatus);
-    var fwdBtn = h("button", { id: "sf-fwd-phish",
-      "class": "sf-btn-green" }, "Forward phish to APWG + CISA");
-    fwdBtn.addEventListener("click", function () { gmailForwardPhish(); });
-    body.appendChild(h("div", { "class": "sf-actions" }, fwdBtn));
+    // v1.0.64 (Michael's call, 2026-10-28, an hour after the
+    // Safe Browsing flattening): same shape, same ruling — the
+    // FTC section held only its button and the stash status,
+    // so the row launches the lane and the status prints
+    // underneath the row. The guided walkthrough itself lives
+    // in reportfill.js's banner on the FTC site, not here.
+    acc.actionRow("sf-sec-ftc", "sf-btn-blue",
+      "Report to FTC",
+      stashThenOpen("https://reportfraud.ftc.gov/", ftcStatus.set));
+    stack.appendChild(ftcStatus.el);
+    // v1.0.64 (Michael's call, 2026-10-28): Safe Browsing has no
+    // section and no nested button — its panel held nothing but
+    // a button repeating the title, a dead click. The row itself
+    // launches the lane (stash, then the form opens filled).
+    // Its status line lives directly under the row.
+    acc.actionRow("sf-sec-sb", "sf-btn-green",
+      "Report to Google Safe Browsing",
+      stashThenOpen(
+        "https://safebrowsing.google.com/safebrowsing/report_phish/",
+        sbStatus.set));
+    stack.appendChild(sbStatus.el);
+    // v1.0.64 (Michael's call, 2026-10-28): Forward flattens
+    // too — its section held only its button. The one adaptation:
+    // that button is a live status surface (Opening\u2026 /
+    // addressed / failure states), so the row's label span takes
+    // over the job and the row keeps the button's established
+    // id, sf-fwd-phish, which gmailForwardPhish looks up.
+    acc.actionRow("sf-sec-fwd", "sf-btn-green",
+      "Forward phish to APWG + CISA",
+      function () { gmailForwardPhish(); }, "sf-fwd-phish");
+    // The Gmail-native lane has no Outlook equivalent; it keeps
+    // its own section, fifth in the stack, and exists only in
+    // the big-provider case that builds the button.
+    if (reportPhishBtn) {
+      var googleSec = acc.section("sf-sec-google", "sf-btn-green",
+        "Report phishing to Google");
+      googleSec.panel.appendChild(
+        h("div", { "class": "sf-actions" }, reportPhishBtn));
+    }
     body.appendChild(h("p", { "class": "sf-fine" },
       "Nothing is sent automatically. You review and send the complaint yourself."));
 
@@ -1025,7 +1249,7 @@
     // v1.0.55: Michael's live-test verdicts — the whole guess
     // system is DELETED (no default, no chips: the first real
     // letter nearly went out to a guessed info@). The toggle
-    // goes YELLOW with "unwanted" bolded, so the section
+    // goes BLUE with "unwanted" bolded, so the section
     // advertises itself. Send-to starts EMPTY in all cases.
     // The sender root domain's RDAP registration record
     // (lib/demand.js fetchRegistrationContact) is consulted,
@@ -1040,34 +1264,35 @@
     // line instead. The letter is always addressed to the
     // company behind the SENDER domain — never renamed to a
     // registrar the RDAP record happened to surface.
+    // v1.0.64: two changes (Michael's rulings, Oct 27–28).
+    // (1) The RDAP registration-contact suggestion is REMOVED —
+    // the fetch, the suggestion row, and the "Looking up the
+    // domain's registration contact…" status text are all gone
+    // (Outlook v1.2.3 parity): a deletion demand goes to the
+    // company that emailed the user, at the address it
+    // publishes — never to a registrar's abuse desk, which
+    // belongs to the complaint lane only. lib/demand.js keeps
+    // fetchRegistrationContact on the shelf; nothing in this
+    // panel calls it anymore. The website errand below is the
+    // only guidance path, and Send-to still starts EMPTY.
+    // (2) The section is an accordion section now: the
+    // .sf-fight zone and its toggle are retired, the section
+    // toggle owns visibility, and the flow renders into the
+    // section's panel unchanged.
     (function () {
       var D = (typeof window !== "undefined") ? window.SpamDemand : null;
       if (!D) return;
-      var demandBody = h("div", { "class": "sf-demand-body" });
-      demandBody.style.display = "none";
+      // v1.0.64: the accordion section toggle replaces the
+      // retired .sf-fight zone + fight toggle. It stays BLUE
+      // with "unwanted" BOLDED (Michael's v1.0.55 call: the
+      // collapsed section has to advertise itself, and blue
+      // is this panel's "you have a move here" color; the bold
+      // word is the one Joe is scanning for). The demand flow
+      // renders into the section's panel.
+      var pidSec = acc.section("sf-sec-pid", "sf-btn-blue",
+        ["Not Spam but still ", h("b", null, "unwanted"), "?"]);
       var wrap = h("div", { "class": "sf-demand" });
-      demandBody.appendChild(wrap);
-      // v1.0.55: the toggle goes YELLOW (sf-btn-yellow, cf.
-      // panel.css) — Michael's call: the collapsed section has
-      // to advertise itself, and yellow is this panel's "you
-      // have a move here" color. The word "unwanted" is BOLD:
-      // it's the word Joe is scanning for. The label is built
-      // from parts (text, <b>, glyph text node) so the click
-      // handler flips ONLY the glyph node — setting textContent
-      // would flatten the bold away.
-      var fightGlyph = document.createTextNode("? \u25B8");
-      var fightToggle = h("button", {
-        "class": "sf-details-toggle sf-fight-toggle sf-btn-yellow",
-        "type": "button", "aria-expanded": "false"
-      }, "Not Spam but still ", h("b", null, "unwanted"), fightGlyph);
-      fightToggle.addEventListener("click", function () {
-        var open = demandBody.style.display !== "none";
-        demandBody.style.display = open ? "none" : "";
-        fightGlyph.textContent = open ? "? \u25B8" : "? \u25BE";
-        fightToggle.setAttribute("aria-expanded", open ? "false" : "true");
-      });
-      var zone = h("div", { "class": "sf-fight" }, fightToggle, demandBody);
-      body.appendChild(zone);
+      pidSec.panel.appendChild(wrap);
 
       // v1.0.51: the explainer both section states show — the
       // report flow above is for strangers; this section is for a
@@ -1099,12 +1324,6 @@
         wrap.appendChild(h("p", { "class": "sf-demand-intro" },
           EXPLAINER));
         var senderDom = D.registrableDomain(a.senderDomain || "");
-        // v1.0.55: RDAP lookup state for this step — "pending"
-        // until fetchRegistrationContact resolves, then "found"
-        // or "none". The draft-button handler sequences it with
-        // the MX checker (see below).
-        var rdapState = senderDom ? "pending" : "none";
-        var stepOpen = false;
         var step = h("div", { "class": "sf-demand-step" });
         step.style.display = "none";
         var draftBtn = h("button", { id: "sf-demand-draft",
@@ -1117,49 +1336,22 @@
         draftBtn.addEventListener("click", function () {
           var open = step.style.display !== "none";
           step.style.display = open ? "none" : "";
-          stepOpen = !open;
           draftBtn.textContent = open ? "Draft a data-deletion demand"
             : "Hide the demand \u25BE";
-          if (!open) {
-            // RDAP first, MX second — they share one status
-            // line and must not fight over it: while the
-            // registration lookup is still out, it owns the
-            // line; once it lands, the MX checker takes over.
-            if (rdapState === "pending") {
-              setMx("muted", "Looking up the domain's registration " +
-                "contact\u2026");
-            } else {
-              runMxCheck();
-            }
-          }
+          if (!open) runMxCheck();
         });
 
         step.appendChild(h("div", { "class": "sf-row" },
           h("span", null, "Send to")));
         // v1.0.55: NO guessed default, NO auto-fill — the field
-        // starts EMPTY in all cases. It gets its value from the
-        // user's own paste (the website errand below) or from
-        // the one-click RDAP suggestion row. The placeholder
-        // says where the address should come from.
+        // starts EMPTY in all cases. It gets its value only
+        // from the user's own paste (the website errand below).
+        // The placeholder says where the address should come
+        // from.
         var toField = h("input", { "class": "sf-input",
           "type": "text", "aria-label": "Demand recipient" });
         toField.placeholder = "Paste the address from their website";
         step.appendChild(toField);
-        // v1.0.55: the RDAP suggestion row — hidden until the
-        // registration lookup lands a contact. ONE row, never
-        // a chip wall, and clicking it is the only way a
-        // record contact reaches the field: the user decides.
-        var rdapContact = null;
-        var srcEl = h("button", { "class": "sf-demand-src",
-          "type": "button" });
-        srcEl.style.display = "none";
-        srcEl.addEventListener("click", function () {
-          if (!rdapContact) return;
-          toField.value = rdapContact.email;
-          refresh();
-          runMxCheck();
-        });
-        step.appendChild(srcEl);
 
         // v1.0.53: advisory mail-server sanity check under the
         // Send-to field. Says whether the recipient DOMAIN has
@@ -1214,10 +1406,11 @@
         // paragraph; the privacy@ point survives folded into
         // the instruction's last clause.
         // v1.0.55: with the guess system gone, this errand is
-        // the PRIMARY way the field gets filled whenever RDAP
-        // surfaces nothing (or only a dead end). The
-        // instruction line is kept in a variable: the empty-To
-        // guard on the Open button flashes it (flashInstr).
+        // the primary way the field gets filled.
+        // v1.0.64: with the RDAP suggestion gone too, it is
+        // the ONLY way — by design. The instruction line is
+        // kept in a variable: the empty-To guard on the Open
+        // button flashes it (flashInstr).
         var instrEl = null;
         if (senderDom) {
           var lookupBtn = h("button", { "class": "sf-lookup-btn",
@@ -1247,39 +1440,6 @@
           instrFlashTimer = setTimeout(function () {
             instrEl.classList.remove("sf-flash");
           }, 1800);
-        }
-
-        // v1.0.55: the RDAP registration-contact lookup. One
-        // lookup per demand step, started at render time; the
-        // shared status line narrates it while it's out (the
-        // draft-button handler owns that sequencing). A found
-        // contact renders the suggestion row — it NEVER writes
-        // the field itself — and if the user has already typed
-        // or pasted an address, the row still shows but stays
-        // strictly hands-off until clicked. Nothing found (or
-        // only a dead end, which lib/demand.js filters before
-        // it ever gets here): the row stays hidden and the
-        // website errand above is the whole story.
-        if (senderDom && D.fetchRegistrationContact) {
-          D.fetchRegistrationContact(senderDom).then(function (found) {
-            rdapState = found ? "found" : "none";
-            if (found) {
-              rdapContact = found;
-              clearEl(srcEl);
-              srcEl.appendChild(document.createTextNode(
-                "Registration record lists: " + found.email +
-                " (" + found.role +
-                (found.org ? " \u2014 " + found.org : "") + ") \u00B7 "));
-              srcEl.appendChild(h("b", null, "Use this address"));
-              srcEl.style.display = "";
-            }
-            // The lookup no longer owns the status line: clear
-            // its "Looking up\u2026" text if the field is still
-            // empty. (A filled field has its own MX flow.)
-            if (stepOpen && !toField.value.trim()) setMx("", "");
-          });
-        } else {
-          rdapState = "none";
         }
 
         var letterBox = h("div", {});
@@ -1316,9 +1476,10 @@
         // carry — but its TEXT no longer depends on the To
         // field at all (v1.0.55): it is always addressed to the
         // company behind the SENDER domain. The To address is
-        // just transport — an RDAP-sourced one may belong to a
-        // registrar (support.aws.com), and the company the
-        // demand names must never be renamed to match it.
+        // just transport — an address the user pastes may
+        // belong to a registrar (support.aws.com), and the
+        // company the demand names must never be renamed to
+        // match it.
         var letter = null;
         function refresh() {
           letter = D.buildDemand({

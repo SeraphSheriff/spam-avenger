@@ -96,7 +96,7 @@
 #spam-avenger-panel .sf-row b { font-weight: 500; word-break: break-word; }
 #spam-avenger-panel .sf-mono { font-family: monospace; }
 #spam-avenger-panel .sf-note {
-  background: #fef7e0;
+  background: #e8f0fe;
   border-radius: 8px;
   padding: 8px 10px;
   margin: 8px 0;
@@ -174,21 +174,22 @@
   color: #fff;
 }
 #spam-avenger-panel .sf-actions button.sf-btn-green:hover { background: #188038; }
-#spam-avenger-panel .sf-actions button.sf-btn-yellow {
-  /* v1.0.63: deep gold #9e6a03 + WHITE text (was bright #ffd60a +
-     dark text). Michael's requirement: paint well under ANY Chrome
-     setting. Field-verified Oct 21: Chrome's native Auto Dark Mode
-     flag flips ALL dark text (incl. pure black) to white while
-     sparing saturated backgrounds — white-on-yellow, unreadable.
-     White text is never flipped, and a deep-gold background is
-     dark enough to stay dark under the repainter, so white on
-     deep gold reads in BOTH worlds (contrast ~4.7:1 normally).
-     Same treatment for the OVH chip, the fight toggle, and the
-     orange button (#a84a08), whose dark text flipped the same way. */
-  background: #9e6a03;
+#spam-avenger-panel .sf-actions button.sf-btn-blue {
+  /* The "a few steps from you" color. History: bright yellow
+     #ffd60a + dark text until v1.0.63, when Chrome's Auto Dark
+     Mode (field-verified Oct 21) flipped dark text to white and
+     made it unreadable — so it became deep gold #9e6a03 + white
+     text, which survives the repainter. v1.0.64: Michael
+     replaced the color outright (the gold "looks like a flavor
+     of baby diaper shit") — Gmail blue #1a73e8 + white text.
+     White on a saturated background keeps the dark-mode
+     survival the gold was bought for, no color-scheme
+     guarding (his call). The class was renamed yellow→blue
+     the same day so nothing in the code lies about the color. */
+  background: #1a73e8;
   color: #fff;
 }
-#spam-avenger-panel .sf-actions button.sf-btn-yellow:hover { background: #8a5c02; }
+#spam-avenger-panel .sf-actions button.sf-btn-blue:hover { background: #1765cc; }
 #spam-avenger-panel .sf-actions button.sf-btn-orange {
   background: #a84a08;
   color: #fff;
@@ -196,7 +197,7 @@
 #spam-avenger-panel .sf-actions button.sf-btn-orange:hover { background: #93400a; }
 #spam-avenger-panel a.sf-ovh-btn {
   display: inline-block;
-  background: #9e6a03;
+  background: #1a73e8;
   color: #fff;
   font-weight: 600;
   text-decoration: none;
@@ -204,12 +205,12 @@
   padding: 4px 10px;
   margin-top: 4px;
 }
-#spam-avenger-panel a.sf-ovh-btn:hover { background: #8a5c02; }
+#spam-avenger-panel a.sf-ovh-btn:hover { background: #1765cc; }
 
 /* v1.0.36: info block (meta grid, makeup callout, Red flags) starts
    collapsed behind a neutral full-width toggle, so the panel opens
    focused on the action buttons. Deliberately plain gray — it is
-   neither a green "addon does it" action nor a yellow "user work"
+   neither a green "addon does it" action nor a blue "user work"
    action, just a show/hide control. */
 #spam-avenger-panel .sf-details-toggle {
   display: block;
@@ -241,6 +242,43 @@
   margin-bottom: 0;
 }
 
+/* v1.0.64: the task accordion (the Outlook v1.2.0 pattern in
+   this panel's palette). The panel body's lanes live in
+   .sf-stack as .sf-acc-toggle / .sf-acc-panel pairs: toggles
+   are full-width color buttons, panels start display:none
+   (everything collapsed when the panel opens), and
+   makeAccordion() in content.js keeps exactly one panel open
+   at a time. NOTE: the .sf-btn-green / .sf-btn-blue color
+   rules elsewhere in this file are scoped to .sf-actions
+   buttons, which the toggles are NOT — so the toggle colors
+   are defined here, keyed on the same class names content.js
+   passes in. Values match the .sf-actions palette exactly,
+   so the color legend above the stack stays true. */
+#spam-avenger-panel .sf-stack { margin: 2px 0; }
+#spam-avenger-panel button.sf-acc-toggle {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  box-sizing: border-box; padding: 10px 12px; border: none;
+  border-radius: 8px; cursor: pointer; margin: 0 0 8px;
+  font-size: 13px; font-weight: 600; text-align: left;
+}
+#spam-avenger-panel button.sf-acc-toggle.sf-btn-green {
+  background: #1e8e3e; color: #fff;
+}
+#spam-avenger-panel button.sf-acc-toggle.sf-btn-green:hover {
+  background: #188038;
+}
+#spam-avenger-panel button.sf-acc-toggle.sf-btn-blue {
+  background: #1a73e8; color: #fff;
+}
+#spam-avenger-panel button.sf-acc-toggle.sf-btn-blue:hover {
+  background: #1765cc;
+}
+#spam-avenger-panel .sf-acc-caret { font-size: 11px; }
+#spam-avenger-panel .sf-acc-panel {
+  border: 1px solid #e8eaed; border-radius: 8px;
+  padding: 10px 12px; margin: -2px 0 10px;
+}
+
 /* v1.0.38: color-code legend above "Also report it:" — small and
    muted, dots in the exact button colors (#1e8e3e / #ffd60a).
    v1.0.44: third entry, orange (#e8710a), for the unguided
@@ -255,7 +293,7 @@
   margin: 10px 0 6px;
 }
 #spam-avenger-panel .sf-dot-green { color: #1e8e3e; }
-#spam-avenger-panel .sf-dot-yellow { color: #9e6a03; }
+#spam-avenger-panel .sf-dot-blue { color: #1a73e8; }
 #spam-avenger-panel .sf-dot-orange { color: #a84a08; }
 
 /* v1.0.49: "Your data in their hands" — the data-deletion demand
@@ -276,7 +314,7 @@
    bottom margin (from .sf-details-toggle) is the gap between
    the bar and the tinted card when the zone is expanded.
    v1.0.55: the toggle breaks from the gray sibling chrome —
-   Michael's call, it goes YELLOW (the .sf-btn-yellow palette)
+   Michael's call, it goes YELLOW (the .sf-btn-blue palette)
    with "unwanted" bolded in the label, so the collapsed
    section advertises itself instead of blending into the
    panel furniture. The rules below carry the same specificity
@@ -288,12 +326,12 @@
   padding-top: 10px;
 }
 #spam-avenger-panel .sf-details-toggle.sf-fight-toggle {
-  background: #9e6a03;
+  background: #1a73e8;
   color: #fff;
-  border-color: #7d5502;
+  border-color: #1557a0;
 }
 #spam-avenger-panel .sf-details-toggle.sf-fight-toggle:hover {
-  background: #8a5c02;
+  background: #1765cc;
 }
 #spam-avenger-panel .sf-demand {
   background: #f8f9fa;
@@ -355,23 +393,14 @@
    RDAP suggestion row: a single quiet button under the
    Send-to field naming the contact the domain's registration
    record publishes. One row, clearly labeled, click-to-use —
-   never a wall of maybe-addresses. */
-#spam-avenger-panel .sf-demand-src {
-  display: block;
-  width: 100%;
-  box-sizing: border-box;
-  background: #f1f3f4;
-  color: #202124;
-  border: 1px solid #dadce0;
-  border-radius: 8px;
-  padding: 6px 8px;
-  margin: 0 0 6px;
-  font-size: 12px;
-  line-height: 1.45;
-  text-align: left;
-  cursor: pointer;
-}
-#spam-avenger-panel .sf-demand-src:hover { background: #e8eaed; }
+   never a wall of maybe-addresses.
+   v1.0.64: the RDAP suggestion row is GONE too — the rules
+   are deleted with the feature, same as the guess chips
+   before them. A deletion demand goes to the company that
+   emailed the user, at the address it publishes; the
+   registration record's abuse contact belongs to the
+   complaint lane only. The website errand in the demand
+   step is the only guidance path now. */
 /* v1.0.55: the website-errand instruction line doubles as the
    empty-To guard's pointer: clicking "Open in Gmail" with an
    empty field flashes it (a soft highlight that fades) so the
@@ -383,7 +412,7 @@
   transition: background-color 0.3s ease;
 }
 #spam-avenger-panel .sf-demand-instr.sf-flash {
-  background: #fef7e0;
+  background: #e8f0fe;
 }
 #spam-avenger-panel .sf-demand textarea {
   width: 100%;
