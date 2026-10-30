@@ -331,10 +331,14 @@ ok("OVH detection regex is unchanged (v1.0.27 contact/org match)",
   contentSrc.indexOf('/ovh/i.test(c.to + " " + (a.org || ""))') !== -1);
 ok("OVH match resolves to the OVH form entry",
   kitSeg.indexOf("formLane = OVH_FORM_HINT") !== -1);
-ok("kit instruction copy ships (form is the only lane, box holds the ask)",
-  kitSeg.indexOf("only acts on reports sent through ") !== -1 &&
-  kitSeg.indexOf("deflected to that form anyway") !== -1 &&
-  kitSeg.indexOf("prepared in the box below") !== -1);
+ok("kit instruction copy ships (v1.0.65 Joe copy: clipboard, paste, pick — no justification)",
+  kitSeg.indexOf("Your report details are in the box below") !== -1 &&
+  kitSeg.indexOf("copies them to your clipboard and opens the ") !== -1 &&
+  kitSeg.indexOf("right-click and choose Paste") !== -1 &&
+  contentSrc.indexOf(
+    "For the service question, pick Compute Engine.") !== -1 &&
+  kitSeg.indexOf("deflected") === -1 &&
+  contentSrc.indexOf("full of shit no Joe user") !== -1);
 ok("kit renders the evidence box (title + textarea + lib builder)",
   kitSeg.indexOf("Form evidence \\u2014 paste into the ") !== -1 &&
   kitSeg.indexOf('id: "sf-evidence-text"') !== -1 &&

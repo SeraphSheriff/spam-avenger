@@ -42,7 +42,11 @@
   var HYPER_FORM_HINTS = {
     google: { label: "Google Cloud",
       url: "https://support.google.com/code/contact/cloud_platform_report",
-      linkText: "support.google.com/code/contact/cloud_platform_report" },
+      linkText: "support.google.com/code/contact/cloud_platform_report",
+      // v1.0.65: the one form-specific pick Joe has to make on
+      // the Google form — the spam these reports cover comes
+      // off Compute Engine VMs, so that's the service to pick.
+      pick: "For the service question, pick Compute Engine." },
     aws: { label: "Amazon AWS",
       url: "https://repost.aws/knowledge-center/report-aws-abuse",
       linkText: "repost.aws/knowledge-center/report-aws-abuse" },
@@ -921,13 +925,21 @@
         var kitSec = acc.section("sf-sec-complaint", "sf-btn-blue",
           "Abuse report \u2014 use their form");
         var kw = h("div", { "class": "sf-complaint" });
+        // v1.0.65 (Michael's edit, 2026-10-28): the note tells
+        // Joe ONLY what he has to do — details are copied to
+        // the clipboard, paste with Ctrl+V or right-click, plus
+        // the lane's service pick where there is one. The old
+        // copy justified the lane (deflection policy, why no
+        // email) — "full of shit no Joe user gives a shit
+        // about," his words, and he's right: it's gone.
         kw.appendChild(h("p", { "class": "sf-note" },
-          formLane.label + " only acts on reports sent through " +
-          "its own abuse form \u2014 an emailed complaint gets " +
-          "deflected to that form anyway. Everything the form " +
-          "asks for is prepared in the box below: the button " +
-          "copies it and opens the form \u2014 paste it into the " +
-          "form's details field, then submit the form."));
+          "Your report details are in the box below. The " +
+          "button copies them to your clipboard and opens the " +
+          formLane.label + " abuse form. " +
+          (formLane.pick ? formLane.pick + " " : "") +
+          "On the form, paste into the details field \u2014 " +
+          "Ctrl+V, or right-click and choose Paste \u2014 then " +
+          "submit the form."));
         kw.appendChild(h("b", null,
           "Form evidence \u2014 paste into the " + formLane.label +
           " abuse form"));
@@ -959,7 +971,7 @@
           }
           var origLabel = formBtn.textContent;
           formBtn.textContent = copied
-            ? "Copied! The form is open \u2014 paste into its details field (Ctrl+V)"
+            ? "Copied! The form is open \u2014 paste into its details field (Ctrl+V or right-click \u2192 Paste)"
             : "The form is open \u2014 copy the box text above and paste it in";
           setTimeout(function () { formBtn.textContent = origLabel; }, 6000);
           window.open(formLane.url, "_blank", "noopener");
