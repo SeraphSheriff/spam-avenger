@@ -274,6 +274,18 @@
   background: #1765cc;
 }
 #spam-avenger-panel .sf-acc-caret { font-size: 11px; }
+/* v1.0.66-test2: the launched-action badge. A small bold pill
+   appended by content.js (span.sf-done-badge) to a lane's outer
+   control — its section toggle or action-row button — once the
+   lane has been launched for the open message. White-translucent
+   on the toggle's own green/blue, so it reads on both colors;
+   the full launched line is in the badge's title attribute and
+   in the lane's status line. */
+#spam-avenger-panel .sf-done-badge {
+  background: rgba(255,255,255,.28); color: inherit;
+  border-radius: 999px; padding: 0 6px; margin-left: 8px;
+  white-space: nowrap; font-size: 11px; font-weight: 700;
+}
 #spam-avenger-panel .sf-acc-panel {
   border: 1px solid #e8eaed; border-radius: 8px;
   padding: 10px 12px; margin: -2px 0 10px;

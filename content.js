@@ -100,6 +100,245 @@
     return el ? el.getAttribute("data-legacy-message-id") : null;
   }
 
+  // v1.0.66: per-message action history (Michael's ask, 2026-10-31).
+  // When the user LAUNCHES a lane for a message — opens the FTC or
+  // Safe Browsing form, opens the complaint compose, gets the
+  // forward addressed, opens Gmail's own report dialog — the panel
+  // remembers it, keyed by the message, so coming back to the same
+  // email shows "✓ Launched <when>" instead of inviting a duplicate
+  // run. The store holds ONLY message keys, lane names, and
+  // timestamps — no subjects, addresses, URLs, or complaint text —
+  // in chrome.storage.local under one key, pruned to the 100 most
+  // recently touched messages. The wording is "Launched"/"Opened",
+  // never "Sent"/"Submitted": the user reviews and sends or
+  // submits everything themselves, outside this panel.
+  // [sa-history-helpers-begin]
+  var SA_HISTORY_KEY = "saActionHistory";
+  var SA_HISTORY_MAX = 100;
+  var SA_LANES = ["complaint", "ftc", "sb", "fwd", "google", "pid"];
+
+  // The record key for a message: the analysis Message-ID (the
+  // header, from lib/analyze.js) when there is one, else the Gmail
+  // DOM legacy message id. Null when neither exists — history is
+  // simply skipped for such a message.
+  function saHistoryKey(analysis, legacyId) {
+    var mid = (analysis && analysis.messageId)
+      ? String(analysis.messageId).trim() : "";
+    if (mid) return mid;
+    var leg = legacyId ? String(legacyId).trim() : "";
+    return leg || null;
+  }
+
+  function saNewestTs(rec) {
+    var n = 0;
+    if (rec && typeof rec === "object") {
+      for (var k in rec) {
+        if (Object.prototype.hasOwnProperty.call(rec, k) &&
+            typeof rec[k] === "number" && rec[k] > n) n = rec[k];
+      }
+    }
+    return n;
+  }
+
+  // Drops malformed records and keeps at most `max` messages —
+  // the ones whose newest lane timestamp is most recent.
+  function saPruneHistory(hist, max) {
+    var out = {};
+    if (!hist || typeof hist !== "object") return out;
+    var keys = Object.keys(hist).filter(function (k) {
+      return hist[k] && typeof hist[k] === "object" &&
+        saNewestTs(hist[k]) > 0;
+    });
+    keys.sort(function (x, y) {
+      return saNewestTs(hist[y]) - saNewestTs(hist[x]);
+    });
+    var keep = keys.slice(0,
+      (typeof max === "number" && max > 0) ? max : SA_HISTORY_MAX);
+    keep.forEach(function (k) { out[k] = hist[k]; });
+    return out;
+  }
+
+  // "10:15 AM" — local time only (the badge form of a timestamp).
+  // A non-number or non-positive ts is no timestamp at all
+  // (new Date(null) is the epoch, not an invalid date) — "".
+  function saFormatTime(ts) {
+    if (typeof ts !== "number" || !(ts > 0)) return "";
+    var d = new Date(ts);
+    if (isNaN(d.getTime())) return "";
+    var hrs = d.getHours();
+    var ap = hrs < 12 ? "AM" : "PM";
+    var h12 = hrs % 12;
+    if (h12 === 0) h12 = 12;
+    var min = d.getMinutes();
+    if (min < 10) min = "0" + min;
+    return h12 + ":" + min + " " + ap;
+  }
+
+  // "Oct 31, 10:15 AM" — local time, no year (the store prunes to
+  // the last 100 touched messages, so a record is never old).
+  function saFormatWhen(ts) {
+    if (typeof ts !== "number" || !(ts > 0)) return "";
+    var d = new Date(ts);
+    if (isNaN(d.getTime())) return "";
+    var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    return months[d.getMonth()] + " " + d.getDate() + ", " +
+      saFormatTime(ts);
+  }
+
+  function saLaunchedText(ts) {
+    return "\u2713 Launched " + saFormatWhen(ts);
+  }
+
+  function saOpenedText(ts) {
+    return "\u2713 Complaint opened " + saFormatWhen(ts);
+  }
+
+  // v1.0.66-test2: the badge that rides on a lane's OUTER control
+  // (its section toggle or action-row button — the always-visible
+  // part). test1's marks were small status lines under rows and
+  // inside collapsed sections, so on a fresh panel a returning
+  // user saw literally no change (Michael's live test). The
+  // badge text is short — "✓ 10:42 AM" — and the full launched
+  // line rides in its title attribute.
+  function saBadgeText(ts) {
+    var t = saFormatTime(ts);
+    return t ? "\u2713 " + t : "\u2713";
+  }
+
+  function saBadgeTitle(lane, ts, already) {
+    if (already) return "Already reported to Google \u2713";
+    return lane === "complaint"
+      ? saOpenedText(ts) : saLaunchedText(ts);
+  }
+
+  // Creates the badge span on `el` (a lane's toggle/button) or
+  // updates the one already there. Finds an existing badge among
+  // el's children by class, so repeat calls never stack badges.
+  // Appended LAST, after the caret/glyph and label children —
+  // for Forward that means after (never inside) the .sf-acc-label
+  // span its machinery rewrites. Any DOM failure is swallowed:
+  // a badge must never break the lane it decorates.
+  function saBadgeOnElement(el, lane, ts, already) {
+    if (!el) return null;
+    try {
+      var badge = null;
+      var kids = el.childNodes || [];
+      for (var i = 0; i < kids.length; i++) {
+        if (kids[i] && kids[i].className === "sf-done-badge") {
+          badge = kids[i];
+          break;
+        }
+      }
+      if (!badge) {
+        badge = document.createElement("span");
+        badge.className = "sf-done-badge";
+        el.appendChild(badge);
+      }
+      badge.textContent = saBadgeText(ts);
+      badge.setAttribute("title", saBadgeTitle(lane, ts, already));
+      return badge;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // What a lane's status line should be preset to on panel open:
+  // the launched/opened line when a record exists for the lane,
+  // or null to leave the line alone. A status already showing
+  // text from THIS session (e.g. a fresh click's "Report ready")
+  // is never overwritten by the stale record.
+  function saPresetText(currentText, rec, lane) {
+    if (currentText) return null;
+    if (!rec || typeof rec[lane] !== "number") return null;
+    return lane === "complaint"
+      ? saOpenedText(rec[lane]) : saLaunchedText(rec[lane]);
+  }
+
+  // Fire-and-forget: records lane=now for key in the store held
+  // by `storage` (a chrome.storage.local-shaped object). Returns
+  // true when a write was initiated. Every failure — no storage,
+  // bad key, unknown lane, storage throwing — is swallowed and
+  // reported as false; a lane must NEVER break or stall because
+  // its history write failed.
+  function saRecordLaunched(storage, key, lane, now) {
+    if (!storage || !key || SA_LANES.indexOf(lane) === -1) return false;
+    try {
+      storage.get(SA_HISTORY_KEY, function (res) {
+        try {
+          var hist = (res && typeof res[SA_HISTORY_KEY] === "object" &&
+            res[SA_HISTORY_KEY]) ? res[SA_HISTORY_KEY] : {};
+          var next = {};
+          Object.keys(hist).forEach(function (k) { next[k] = hist[k]; });
+          var rec = {};
+          if (next[key] && typeof next[key] === "object") {
+            Object.keys(next[key]).forEach(function (l) {
+              if (SA_LANES.indexOf(l) !== -1 &&
+                  typeof next[key][l] === "number") rec[l] = next[key][l];
+            });
+          }
+          rec[lane] = (typeof now === "number" && now > 0) ? now : Date.now();
+          next[key] = rec;
+          var payload = {};
+          payload[SA_HISTORY_KEY] = saPruneHistory(next, SA_HISTORY_MAX);
+          storage.set(payload, function () {
+            try {
+              if (typeof chrome !== "undefined" && chrome.runtime &&
+                  chrome.runtime.lastError) { /* swallowed on purpose */ }
+            } catch (e) {}
+          });
+        } catch (e) {}
+      });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Loads the history record for one message key (or null) and
+  // hands it to cb. Any failure reports null — the panel just
+  // renders without indicators, exactly as before v1.0.66.
+  function saLoadLaunched(storage, key, cb) {
+    function done(rec) { try { cb(rec || null); } catch (e) {} }
+    if (!storage || !key || typeof cb !== "function") { done(null); return; }
+    try {
+      storage.get(SA_HISTORY_KEY, function (res) {
+        var hist = (res && typeof res[SA_HISTORY_KEY] === "object" &&
+          res[SA_HISTORY_KEY]) ? res[SA_HISTORY_KEY] : null;
+        var rec = hist ? hist[key] : null;
+        done(rec && typeof rec === "object" ? rec : null);
+      });
+    } catch (e) {
+      done(null);
+    }
+  }
+  // [sa-history-helpers-end]
+
+  // The message key for the message the panel is currently
+  // showing, captured at render time (renderResult). Top-level
+  // lane machinery (gmailForwardPhish) has no analysis object, so
+  // it records against this; the DOM legacy id is the fallback
+  // when no render captured a key.
+  var sfCurrentMsgKey = null;
+
+  function saStorageLocal() {
+    try {
+      if (typeof chrome !== "undefined" && chrome.storage &&
+          chrome.storage.local) return chrome.storage.local;
+    } catch (e) {}
+    return null;
+  }
+
+  // Records a launched lane for the current message. Never
+  // throws, never delays the caller.
+  function recordLaunched(lane) {
+    try {
+      var key = sfCurrentMsgKey || saHistoryKey(null, currentMessageId());
+      if (!key) return;
+      saRecordLaunched(saStorageLocal(), key, lane, Date.now());
+    } catch (e) {}
+  }
+
   // v1.0.63: the ik text scans, hoisted out of ikParam so the async
   // bootstrap hunt below can run the identical patterns over raw
   // server HTML. Serialized markup escapes & as &amp; — match both.
@@ -366,6 +605,9 @@
   // reported: Gmail drops "Report phishing" from the menu and shows a
   // banner instead).
   function markAlreadyReported() {
+    // v1.0.66: Gmail itself says this lane is done — that IS a
+    // launched (indeed completed) Google report, so record it.
+    recordLaunched("google");
     var rb2 = document.getElementById("sf-report-phish");
     if (rb2) {
       rb2.disabled = true;
@@ -375,6 +617,14 @@
         rb2.textContent = "Report phishing to Google";
       }, 8000);
     }
+    // v1.0.66-test2: badge the Google section's toggle too, so
+    // the done mark is visible on the always-visible outer
+    // control, not only inside the (collapsed) section. No
+    // timestamp is claimed — Gmail reported this at some
+    // earlier point; the title carries the already-reported
+    // wording and the badge text is a bare check.
+    var gt = document.getElementById("sf-sec-google-toggle");
+    if (gt) saBadgeOnElement(gt, "google", null, true);
   }
 
   // Forward-to addresses for phishing intake (industry + government).
@@ -405,6 +655,20 @@
       return { ok: false, dbg: dbg };
     }
     function done() {
+      // v1.0.66: the forward compose is addressed — the lane was
+      // launched. Record it and show it on the status line under
+      // the row (the label itself re-arms below, so the launched
+      // note lives on the separate status element).
+      recordLaunched("fwd");
+      var fs = document.getElementById("sf-fwd-status");
+      if (fs) fs.textContent = saLaunchedText(Date.now());
+      // v1.0.66-test2: badge the row button itself, in-session.
+      // The button is this very element (id sf-fwd-phish); the
+      // badge goes on the button AFTER its label span, never
+      // inside .sf-acc-label (setLabel rewrites that span and
+      // the re-arm below would eat a badge placed there).
+      var rbBadge = document.getElementById("sf-fwd-phish");
+      if (rbBadge) saBadgeOnElement(rbBadge, "fwd", Date.now(), false);
       if (rb) {
         setLabel("Forward addressed \u2014 review and hit Send");
         // Re-arm: if the user closed the compose without sending,
@@ -901,6 +1165,60 @@
     // the stack (after Forward), so the branch hands the button
     // up through this variable.
     var reportPhishBtn = null;
+    // v1.0.66: this render's message key for the action-history
+    // store, and the per-lane launched-status elements (built by
+    // whichever branch renders the lane; the history preset at
+    // the bottom of the render fills them in).
+    var msgKey = saHistoryKey(a, currentMessageId());
+    sfCurrentMsgKey = msgKey;
+    var complaintStatusEl = null, googleStatusEl = null;
+    // v1.0.66-test2: badge targets for this render — each lane
+    // registers the element of its OUTER, always-visible control
+    // (section toggle or action-row button) as it renders:
+    // badgeTargets[lane] = { el }. applyLaunchedBadge reads the
+    // registry AT CALL TIME, never a snapshot: the history-load
+    // callback at the bottom of this render fires asynchronously
+    // (chrome.storage callbacks always do), by which point the
+    // synchronous remainder of the render has completed the
+    // registry.
+    // v1.0.66-test4: the PID lane IS in this registry, but its
+    // registered target — the blue section toggle — carries
+    // only a DISPLAY-ONLY MIRROR of the badge that lives on the
+    // green Open-in-Gmail button inside the section. History:
+    // test3 (Michael's call) took the badge off the toggle
+    // entirely, leaving it on the green button alone; test4
+    // (his follow-up call, same day) restores it on the toggle
+    // as a mirror, so a collapsed PID section still shows at a
+    // glance that the lane was launched. The single source of
+    // truth stays the saActionHistory record: the toggle badge
+    // is always applied from the same stored timestamp (or the
+    // same click-moment value) as the button badge — never an
+    // independently computed time — and the toggle still never
+    // RECORDS anything (see the pid section below). The green
+    // button is built asynchronously by the demand step, so it
+    // presets its own badge (and re-mirrors the toggle) there;
+    // see renderDemandStep below.
+    // v1.0.66-test5: the COMPLAINT lane follows the same
+    // button-plus-mirror shape as PID (Michael's call after the
+    // test4 live test): its badge lives on the inner action
+    // button itself — the form kit's "Copy evidence & open the
+    // form" button or the email lane's "Open in Gmail" button —
+    // and the section toggle carries the mirror. So complaint
+    // registers TWO targets ({ els: [toggle, button] } below);
+    // every other lane keeps the single-target { el } shape.
+    // Both complaint elements are built synchronously in this
+    // render, before the history-load callback fires, so the
+    // callback presets both from the one stored timestamp; the
+    // in-session click applies one shared `now` to both.
+    var badgeTargets = {};
+    function applyLaunchedBadge(lane, ts, already) {
+      var t = badgeTargets[lane];
+      if (!t) return;
+      var els = t.els || (t.el ? [t.el] : []);
+      for (var i = 0; i < els.length; i++) {
+        saBadgeOnElement(els[i], lane, ts, already);
+      }
+    }
     if (a.complaint) {
       var c = a.complaint;
       // Form lanes first (v1.0.64, Michael's call 2026-10-28):
@@ -924,6 +1242,10 @@
       if (formLane) {
         var kitSec = acc.section("sf-sec-complaint", "sf-btn-blue",
           "Abuse report \u2014 use their form");
+        // v1.0.66-test5: els[0] is the toggle (the mirror);
+        // the form button itself is pushed in below, the
+        // moment it exists — both are badged together.
+        badgeTargets.complaint = { els: [kitSec.toggle] };
         var kw = h("div", { "class": "sf-complaint" });
         // v1.0.65 (Michael's edit, 2026-10-28): the note tells
         // Joe ONLY what he has to do — details are copied to
@@ -954,9 +1276,20 @@
         // cut from the email lane stays cut: there, Open in
         // Gmail does the work. Here the lane IS copy-and-paste,
         // so the copy earns its place — folded into this button.)
-        var formBtn = h("button", { id: "sf-open-abuse-form",
-          "class": "sf-btn-blue", "type": "button" },
+        // v1.0.66-test5: the button's label lives in its OWN
+        // span (.sf-btn-label) and the badge rides as a SIBLING
+        // span — the click handler below rewrites the label for
+        // its "Copied!…" confirmation, and a whole-button
+        // textContent write would wipe a badge child (and a
+        // captured "original label" would bake badge text into
+        // the restore string). Same arrangement the actionRow's
+        // .sf-acc-label uses for Forward. The visible label —
+        // and the swap/restore texts — are unchanged.
+        var formBtnLabel = h("span", { "class": "sf-btn-label" },
           "Copy evidence & open the " + formLane.label + " abuse form");
+        var formBtn = h("button", { id: "sf-open-abuse-form",
+          "class": "sf-btn-blue", "type": "button" }, formBtnLabel);
+        badgeTargets.complaint.els.push(formBtn);
         showBlue = true; // the form button is a blue control
         formBtn.addEventListener("click", function () {
           var copied = false;
@@ -969,18 +1302,43 @@
             navigator.clipboard.writeText(eta.value).catch(function () {});
             copied = true; // best-effort; the box text stays selected
           }
-          var origLabel = formBtn.textContent;
-          formBtn.textContent = copied
+          var origLabel = formBtnLabel.textContent;
+          formBtnLabel.textContent = copied
             ? "Copied! The form is open \u2014 paste into its details field (Ctrl+V or right-click \u2192 Paste)"
             : "The form is open \u2014 copy the box text above and paste it in";
-          setTimeout(function () { formBtn.textContent = origLabel; }, 6000);
+          setTimeout(function () { formBtnLabel.textContent = origLabel; }, 6000);
           window.open(formLane.url, "_blank", "noopener");
+          // v1.0.66: the form-kit lane IS the complaint lane for
+          // these hosts — the evidence was copied and the form
+          // opened, so record the launch.
+          recordLaunched("complaint");
+          // v1.0.66-test5: ONE `now` for the status line and
+          // BOTH badges — this button and its mirror on the
+          // section toggle — so the two can never disagree.
+          // The badge span is a sibling of the label span, so
+          // it rides through the "Copied!…" swap above and is
+          // still there when the label restores 6s later. The
+          // trigger is THIS inner button's click, never the
+          // toggle's own expand/collapse click.
+          var now = Date.now();
+          if (complaintStatusEl) {
+            complaintStatusEl.textContent = saOpenedText(now);
+          }
+          applyLaunchedBadge("complaint", now);
         });
         kw.appendChild(h("div", { "class": "sf-actions" }, formBtn));
+        // v1.0.66: launched-status line for the complaint lane.
+        complaintStatusEl = h("p", { "class": "sf-fine sf-status",
+          "id": "sf-complaint-status" }, "");
+        kw.appendChild(complaintStatusEl);
         kitSec.panel.appendChild(kw);
       } else {
       var compSec = acc.section("sf-sec-complaint", "sf-btn-green",
         "Abuse complaint \u2014 ready to send");
+      // v1.0.66-test5: els[0] is the toggle (the mirror);
+      // the compose button itself is pushed in below, the
+      // moment it exists — both are badged together.
+      badgeTargets.complaint = { els: [compSec.toggle] };
       var cw = h("div", { "class": "sf-complaint" },
         h("b", null, "Ready-to-send complaint"));
       var ta = h("textarea", { id: "sf-complaint-text" });
@@ -992,10 +1350,24 @@
       // and anyone technical enough to want the raw text can
       // copy it straight from the textarea above. "Open in
       // Gmail" is the one send path.
+      // v1.0.66-test5: the label lives in its OWN span
+      // (.sf-btn-label), the badge rides as a SIBLING span —
+      // the paste-mode confirmation below rewrites the label,
+      // and a whole-button textContent write would wipe a
+      // badge child (same hazard as the form-kit button; see
+      // there). Visible label and swap texts unchanged.
+      var compBtnLabel = h("span", { "class": "sf-btn-label" },
+        "Open in Gmail \u2014 just click Send");
       var compBtn = h("button", { id: "sf-compose",
-        "class": "sf-btn-green" }, "Open in Gmail \u2014 just click Send");
+        "class": "sf-btn-green" }, compBtnLabel);
+      badgeTargets.complaint.els.push(compBtn);
       showGreen = true; // Open in Gmail
       cw.appendChild(h("div", { "class": "sf-actions" }, compBtn));
+      // v1.0.66: launched-status line for the complaint lane,
+      // inside the section under the compose button.
+      complaintStatusEl = h("p", { "class": "sf-fine sf-status",
+        "id": "sf-complaint-status" }, "");
+      cw.appendChild(complaintStatusEl);
       compSec.panel.appendChild(cw);
       compBtn.addEventListener("click", function () {
         // v1.0.58: a complaint carrying full headers can exceed
@@ -1010,11 +1382,26 @@
           if (navigator.clipboard) {
             navigator.clipboard.writeText(plan.complaint.body).catch(function () {});
           }
-          var origLabel = compBtn.textContent;
-          compBtn.textContent = "Copied! Paste into the email (Ctrl+V), then Send";
-          setTimeout(function () { compBtn.textContent = origLabel; }, 6000);
+          var origLabel = compBtnLabel.textContent;
+          compBtnLabel.textContent = "Copied! Paste into the email (Ctrl+V), then Send";
+          setTimeout(function () { compBtnLabel.textContent = origLabel; }, 6000);
         }
         window.open(plan.url, "_blank", "noopener");
+        // v1.0.66: the compose (direct, shrunk, or paste mode)
+        // actually opened — the complaint lane was launched.
+        recordLaunched("complaint");
+        // v1.0.66-test5: ONE `now` for the status line and
+        // BOTH badges — this button and its mirror on the
+        // section toggle (the PID shape). The badge span is a
+        // sibling of the label span, so the paste-mode swap
+        // above can't wipe it. The trigger is THIS inner
+        // button's click, never the toggle's own
+        // expand/collapse click.
+        var now = Date.now();
+        if (complaintStatusEl) {
+          complaintStatusEl.textContent = saOpenedText(now);
+        }
+        applyLaunchedBadge("complaint", now);
       });
       }
     } else if (a.ip && !a.skipComplaint) {
@@ -1041,6 +1428,15 @@
           var r = gmailReportPhishing();
           rb.disabled = true;
           if (r.ok) {
+            // v1.0.66: Gmail's report dialog is on its way — the
+            // Google lane was launched.
+            recordLaunched("google");
+            if (googleStatusEl) {
+              googleStatusEl.textContent = saLaunchedText(Date.now());
+            }
+            // v1.0.66-test2: badge the Google section toggle
+            // in-session (this inner button is the trigger).
+            applyLaunchedBadge("google", Date.now());
             rb.textContent = "Opening Gmail\u2019s report dialog\u2026";
             // Re-arm: if the user cancels Gmail's dialog, the button
             // comes back instead of staying dead until a page refresh.
@@ -1114,7 +1510,7 @@
     // ignores it after 30 minutes), and the user still reviews and
     // submits every report themselves. If storage is unavailable the
     // page still opens — a blank form beats a dead button.
-    function stashThenOpen(url, setStashStatus) {
+    function stashThenOpen(url, setStashStatus, lane) {
       return function (ev) {
         if (ev && ev.preventDefault) ev.preventDefault();
         var opened = false;
@@ -1122,6 +1518,17 @@
           if (opened) return;
           opened = true;
           window.open(url, "_blank", "noopener");
+          // v1.0.66: the form tab actually opened — via the
+          // storage-success path, the storage-unavailable
+          // fallback, or the safety-net timer, this is the one
+          // choke point they all pass through — so the lane
+          // counts as launched exactly once.
+          if (lane) {
+            recordLaunched(lane);
+            // v1.0.66-test2: badge the action-row button
+            // in-session, at the same choke point.
+            applyLaunchedBadge(lane, Date.now());
+          }
         }
         try {
           if (typeof chrome === "undefined" || !chrome.storage ||
@@ -1176,20 +1583,22 @@
     // so the row launches the lane and the status prints
     // underneath the row. The guided walkthrough itself lives
     // in reportfill.js's banner on the FTC site, not here.
-    acc.actionRow("sf-sec-ftc", "sf-btn-blue",
+    var ftcRow = acc.actionRow("sf-sec-ftc", "sf-btn-blue",
       "Report to FTC",
-      stashThenOpen("https://reportfraud.ftc.gov/", ftcStatus.set));
+      stashThenOpen("https://reportfraud.ftc.gov/", ftcStatus.set, "ftc"));
+    badgeTargets.ftc = { el: ftcRow.toggle };
     stack.appendChild(ftcStatus.el);
     // v1.0.64 (Michael's call, 2026-10-28): Safe Browsing has no
     // section and no nested button — its panel held nothing but
     // a button repeating the title, a dead click. The row itself
     // launches the lane (stash, then the form opens filled).
     // Its status line lives directly under the row.
-    acc.actionRow("sf-sec-sb", "sf-btn-green",
+    var sbRow = acc.actionRow("sf-sec-sb", "sf-btn-green",
       "Report to Google Safe Browsing",
       stashThenOpen(
         "https://safebrowsing.google.com/safebrowsing/report_phish/",
-        sbStatus.set));
+        sbStatus.set, "sb"));
+    badgeTargets.sb = { el: sbRow.toggle };
     stack.appendChild(sbStatus.el);
     // v1.0.64 (Michael's call, 2026-10-28): Forward flattens
     // too — its section held only its button. The one adaptation:
@@ -1197,18 +1606,93 @@
     // addressed / failure states), so the row's label span takes
     // over the job and the row keeps the button's established
     // id, sf-fwd-phish, which gmailForwardPhish looks up.
-    acc.actionRow("sf-sec-fwd", "sf-btn-green",
+    var fwdRow = acc.actionRow("sf-sec-fwd", "sf-btn-green",
       "Forward phish to APWG + CISA",
       function () { gmailForwardPhish(); }, "sf-fwd-phish");
+    badgeTargets.fwd = { el: fwdRow.toggle };
+    // v1.0.66: Forward gets a status line under its row, exactly
+    // like FTC / Safe Browsing. The row's own label is a live
+    // status surface owned by gmailForwardPhish (addressed /
+    // failure states, 12s re-arm), so the persistent launched
+    // note cannot live there — it would be eaten by the re-arm.
+    var fwdStatus = mkStashStatus("sf-fwd-status");
+    stack.appendChild(fwdStatus.el);
     // The Gmail-native lane has no Outlook equivalent; it keeps
     // its own section, fifth in the stack, and exists only in
     // the big-provider case that builds the button.
     if (reportPhishBtn) {
       var googleSec = acc.section("sf-sec-google", "sf-btn-green",
         "Report phishing to Google");
+      badgeTargets.google = { el: googleSec.toggle };
       googleSec.panel.appendChild(
         h("div", { "class": "sf-actions" }, reportPhishBtn));
+      // v1.0.66: launched-status line for the Google lane,
+      // inside its section under the button.
+      googleStatusEl = h("p", { "class": "sf-fine sf-status",
+        "id": "sf-google-status" }, "");
+      googleSec.panel.appendChild(googleStatusEl);
     }
+    // v1.0.66: preset every lane's launched indicator from the
+    // stored history for THIS message. Async and best-effort:
+    // no record (or no storage) leaves the panel exactly as it
+    // rendered. saPresetText never overwrites a status a fresh
+    // click in this session already wrote, and no lane is ever
+    // disabled — re-running a lane stays possible.
+    saLoadLaunched(saStorageLocal(), msgKey, function (rec) {
+      // `rec` may be null — the presets below all no-op on a
+      // missing record, and the Gmail-banner check still runs:
+      // Gmail's own state outranks the store.
+      function preset(el, lane) {
+        if (!el) return;
+        var t = saPresetText(el.textContent, rec, lane);
+        if (t) el.textContent = t;
+      }
+      preset(ftcStatus.el, "ftc");
+      preset(sbStatus.el, "sb");
+      preset(fwdStatus.el, "fwd");
+      preset(complaintStatusEl, "complaint");
+      preset(googleStatusEl, "google");
+      // v1.0.66-test2: badges on the outer controls, alongside
+      // the status lines above. badgeTargets is consulted HERE,
+      // at callback time — the registry is a live object the
+      // rest of this synchronous render keeps filling, and the
+      // storage callback only fires once the render has run to
+      // completion, so every registered lane's target is present
+      // by now. v1.0.66-test4: pid's registered target is its
+      // section toggle, badged HERE straight from the stored
+      // record — the mirror path for a return visit where the
+      // section is never expanded this session, so the badge on
+      // the collapsed toggle is the only sign the lane ran. The
+      // green demand button itself is built later and presets
+      // its own badge (re-mirroring this same timestamp onto
+      // the toggle) in renderDemandStep. v1.0.66-test5:
+      // complaint's registry entry carries BOTH its inner
+      // button and its toggle, so this same pass presets the
+      // button's badge and the toggle's mirror from the one
+      // stored complaint timestamp.
+      if (rec) {
+        Object.keys(rec).forEach(function (lane) {
+          if (typeof rec[lane] === "number") {
+            applyLaunchedBadge(lane, rec[lane]);
+          }
+        });
+      }
+      // Gmail's true state: if the open message already carries
+      // the "You reported this message as phishing" banner, the
+      // Google lane is done whether or not our store knows it —
+      // say so, and remember it for next time.
+      if (googleStatusEl && (document.body.textContent || "").indexOf(
+            "reported this message as phishing") !== -1) {
+        googleStatusEl.textContent = "Already reported to Google \u2713";
+        recordLaunched("google");
+        // The badge title carries the already-reported wording;
+        // its text uses the stored launch time when there is
+        // one, else a bare check.
+        applyLaunchedBadge("google",
+          (rec && typeof rec.google === "number") ? rec.google : null,
+          true);
+      }
+    });
     body.appendChild(h("p", { "class": "sf-fine" },
       "Nothing is sent automatically. You review and send the complaint yourself."));
 
@@ -1303,6 +1787,23 @@
       // renders into the section's panel.
       var pidSec = acc.section("sf-sec-pid", "sf-btn-blue",
         ["Not Spam but still ", h("b", null, "unwanted"), "?"]);
+      // v1.0.66-test4 (Michael's follow-up call after the
+      // test3 live test): this blue toggle carries a
+      // DISPLAY-ONLY MIRROR of the PID badge. History: test2
+      // badged this toggle as the lane's primary mark; test3
+      // (Michael's call) removed it — the ✓ belonged on the
+      // green "Open in Gmail" action button (sf-demand-open)
+      // alone; test4 restores the toggle badge as a mirror of
+      // that same badge, so the collapsed section still shows
+      // the lane was launched. The mirror is registered here
+      // and badged from the stored record by the render-end
+      // history callback; the demand step re-mirrors the same
+      // timestamp when it presets the green button, and the
+      // button's click handler mirrors its click moment onto
+      // both. This toggle remains a pure expand/collapse
+      // control as a TRIGGER: it only ever DISPLAYS the badge
+      // — recording stays exclusively on the green button.
+      badgeTargets.pid = { el: pidSec.toggle };
       var wrap = h("div", { "class": "sf-demand" });
       pidSec.panel.appendChild(wrap);
 
@@ -1477,6 +1978,32 @@
           "class": "sf-btn-green", "type": "button" },
           "Open in Gmail \u2014 just click Send");
         step.appendChild(h("div", { "class": "sf-actions" }, openBtn));
+        // v1.0.66-test3: preset THIS button's launched badge
+        // from the stored history. The demand step renders
+        // asynchronously (D.loadDetails().then above), possibly
+        // AFTER renderResult's own history-load callback already
+        // fired. So the check runs here, at build time, keyed by
+        // this render's own message key. The panel may have been
+        // closed and re-rendered for a different message by the
+        // time the storage callback lands — the sfCurrentMsgKey
+        // guard drops the stale badge rather than pinning it to
+        // a message it doesn't belong to. saBadgeOnElement
+        // updates in place, so a record applied twice (this
+        // check plus an in-session click) still yields exactly
+        // one badge.
+        // v1.0.66-test4: the SAME stored timestamp (rec.pid) is
+        // also applied to the section toggle — the mirror. The
+        // render-end callback may already have badged the
+        // toggle from this very record; re-applying the
+        // identical value just updates it in place, so the two
+        // badges can never show different times.
+        saLoadLaunched(saStorageLocal(), msgKey, function (rec) {
+          if (sfCurrentMsgKey !== msgKey) return;
+          if (rec && typeof rec.pid === "number") {
+            saBadgeOnElement(openBtn, "pid", rec.pid, false);
+            saBadgeOnElement(pidSec.toggle, "pid", rec.pid, false);
+          }
+        });
         step.appendChild(h("p", { "class": "sf-fine" },
           "Goes out from you: " + det.name + " (" + det.email + ")" +
           (det.state ? ", " + (D.stateName(det.state) || det.state) : "") +
@@ -1521,6 +2048,19 @@
             "&su=" + encodeURIComponent(letter.subject) +
             "&body=" + encodeURIComponent(letter.body);
           window.open(url, "_blank", "noopener");
+          // v1.0.66-test3: the demand compose actually opened
+          // (the empty-To early return above never reaches
+          // here) — the PID lane was launched. Record it and
+          // badge THIS button in-session.
+          // v1.0.66-test4: ONE `now` badges both the button and
+          // its mirror on the blue section toggle, so the two
+          // always show the identical time. Recording still
+          // happens ONLY here, on the green button's click —
+          // the toggle displays the mirror but never records.
+          var now = Date.now();
+          recordLaunched("pid");
+          saBadgeOnElement(openBtn, "pid", now, false);
+          saBadgeOnElement(pidSec.toggle, "pid", now, false);
         });
       }
 
