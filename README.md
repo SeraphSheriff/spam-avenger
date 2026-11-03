@@ -83,6 +83,16 @@ attachments and the compose can't attach one anyway — headers in
 the body are the evidence that survives.) Same lane, same flow:
 you review it and click Send, like every complaint.
 
+Follow-up (v1.0.68): the details panel matches the switch. In
+this case the abuse contact shown is the phishing desk, and the
+"From address is makeup" note flips — the account itself is the
+face, the IP is just Microsoft's shared mail truck. And when
+DNS confirms the sender's domain runs no website at all (no A
+or AAAA records for the domain or its www host, checked with
+the same DNS lookups the panel already makes), the note and
+the report both say so: a domain that exists only to send
+mail. On any DNS error or uncertainty, nothing is claimed.
+
 - **Your data in their hands**: one more panel action drafts a formal
   data-deletion demand to the sender's company — delete everything,
   opt me out of sale/sharing/tracking, purge backups, make your

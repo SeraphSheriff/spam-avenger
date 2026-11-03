@@ -1138,8 +1138,19 @@
       details.appendChild(mkRow("Sending IP", a.ip, true));
       details.appendChild(mkRow("Server", a.host || "unknown"));
       details.appendChild(mkRow("Owned by", a.org || "unknown"));
-      details.appendChild(mkRow("Abuse contact", a.abuse || "not published"));
+      // v1.0.68: in the Microsoft tenant-account case, the
+      // abuse contact that matters is the phishing desk the
+      // Report Abuse lane now targets — not the pool IP's
+      // RDAP contact (abuse@microsoft.com) — and the makeup
+      // line below is backwards (the From account is real),
+      // so the lib builds a flipped note naming the account.
+      details.appendChild(mkRow("Abuse contact",
+        a.msAccountReport ? "phish@office365.microsoft.com"
+                          : (a.abuse || "not published")));
+      var detailNote = a.msAccountReport && window.SpamAvenger.msDetailsNote
+        ? window.SpamAvenger.msDetailsNote(a) : null;
       details.appendChild(h("p", { "class": "sf-note" },
+        detailNote ||
         'The "From" address is makeup. The IP is the face underneath.'));
     }
     if (a.flags && a.flags.length) {

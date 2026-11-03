@@ -45,7 +45,7 @@ function ok(name, cond, extra) {
 }
 
 // ---------- manifest ----------
-ok("manifest version is 1.0.67", manifest.version === "1.0.67",
+ok("manifest version is 1.0.68", manifest.version === "1.0.68",
   "got " + manifest.version);
 ok("permissions unchanged: storage only",
   JSON.stringify(manifest.permissions) === JSON.stringify(["storage"]));
