@@ -1,10 +1,13 @@
 // Spam Avenger v1.0.69 (combined build) — per-field form
 // kits for Google Cloud, AWS, and OVHcloud.
-// The v1.0.69 Azure kit is the one-field case: the MSRC
-// form takes one details paste, so its kit is the evidence
-// block + the details copy button (pinned in
-// test-v1069-azure-form-kit.js, untouched here). The other
-// three forms split the report across their own boxes, and
+// (v1.0.70: Azure joined these lanes — Michael's screenshot
+// of the real MSRC Report Details step showed pickers, a
+// Source IP box, and a 2,000-character Report notes cap, so
+// the v1.0.69 one-field Azure kit was retired and azure
+// declares `fields` too; its map is pinned in
+// test-v1070-azure-msrc-steps.js. This suite's three lanes
+// are unchanged.) The three forms here split the report
+// across their own boxes, and
 // one paste fits none of them, so their lane entries now
 // declare `fields`: each field names the form's box, gives
 // Joe a one-line instruction, and carries its own Copy
@@ -48,9 +51,9 @@ function ok(name, cond, extra) {
   else { fail++; console.log("  FAIL " + name + (extra ? " — " + extra : "")); }
 }
 
-// ---------- manifest: the combined build is 1.0.69 ----------
-ok("manifest version is 1.0.69 (combined build)",
-  manifest.version === "1.0.69", "got " + manifest.version);
+// ---------- manifest: this build is 1.0.70 ----------
+ok("manifest version is 1.0.70 (combined build)",
+  manifest.version === "1.0.70", "got " + manifest.version);
 ok("permissions unchanged: storage only",
   JSON.stringify(manifest.permissions) === JSON.stringify(["storage"]));
 ok("no new host permissions",
@@ -97,13 +100,14 @@ ok("every steps lane carries the identity note (identity boxes are the user's)",
     return typeof l.fieldsIntro === "string" &&
       /never prepares them/.test(l.fieldsIntro);
   }));
-ok("steps lanes keep fact/details unset (the v1.0.69 azure flags stay azure-only)",
+ok("steps lanes keep fact/details unset (azure's fact/showLink flags stay azure-only)",
   hints.google.fact === undefined && hints.google.details === undefined &&
   hints.aws.fact === undefined && hints.aws.details === undefined &&
   ovhHint.fact === undefined && ovhHint.details === undefined);
-ok("azure is the one-field case: no fields list, kit as shipped",
-  hints.azure.fields === undefined &&
-  hints.azure.details === true &&
+ok("azure declares fields since v1.0.70 (map pinned in the v1070 suite)",
+  Array.isArray(hints.azure.fields) &&
+  hints.azure.fields.length === 4 &&
+  hints.azure.details === undefined &&
   hints.azure.url ===
     "https://msrc.microsoft.com/report/abuse?ThreatType=IpAddress&IncidentType=Spam");
 
@@ -135,8 +139,8 @@ ok("field copy buttons are copy-only: the kit still has exactly one form opener"
 ok("field copies record no launch (nothing is filed until the user submits)",
   kitSeg.slice(kitSeg.indexOf("if (formLane.fields"))
     .indexOf("recordLaunched") === -1);
-ok("no new .sf-btn-label spans (v1.0.66 count pin stands at 3)",
-  (contentSrc.match(/"class": "sf-btn-label"/g) || []).length === 3);
+ok("no new .sf-btn-label spans (v1.0.70: back to 2 — the Azure copy-details span retired)",
+  (contentSrc.match(/"class": "sf-btn-label"/g) || []).length === 2);
 
 // ---------- lib: the slices ----------
 // One spam fixture, three forms. Modeled on the real

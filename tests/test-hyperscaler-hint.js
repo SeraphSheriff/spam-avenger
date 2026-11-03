@@ -342,7 +342,7 @@ ok("kit instruction copy ships (v1.0.65 Joe copy: clipboard, paste, pick — no 
 ok("kit renders the evidence box (title + textarea + lib builder)",
   kitSeg.indexOf("Form evidence \\u2014 paste into the ") !== -1 &&
   kitSeg.indexOf('id: "sf-evidence-text"') !== -1 &&
-  kitSeg.indexOf("buildFormEvidence(a,") !== -1);
+  kitSeg.indexOf("buildFormEvidence(a)") !== -1);
 ok("kit form button: id, blue, copy+open label, copies evidence then opens the lane URL",
   kitSeg.indexOf('id: "sf-open-abuse-form"') !== -1 &&
   kitSeg.indexOf('"class": "sf-btn-blue"') !== -1 &&

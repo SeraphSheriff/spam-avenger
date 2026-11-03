@@ -8,7 +8,7 @@
 // give them the link AND a little information — a copy-paste
 // kind of deal.
 // So, inside the EXISTING form kit (no new lane; the email
-// complaint machinery is untouched), the Azure lane gains:
+// complaint machinery is untouched), the Azure lane gained:
 //   - the MSRC link with its picks pre-picked
 //     (ThreatType=IpAddress&IncidentType=Spam), shown as a
 //     link under the evidence box, not just opened by a
@@ -16,20 +16,24 @@
 //   - ONE factual line: "This host takes abuse reports
 //     through its web form; the form is where a case gets
 //     opened.";
-//   - a details block that mirrors the emailed complaint's
-//     evidence (lib buildFormEvidence opts.mirrorComplaint:
-//     server name + defanged links join source IP, date,
-//     From, Subject, Received and the full headers — same
-//     trimHeaders treatment, same 8000-char header cap, same
-//     10-link cap) and a "Copy the details for the form"
-//     button that copies it (copy-only: no form open, no
-//     launched-action record — nothing has been filed yet).
-// The v1.0.67 guard stands: the Microsoft TENANT case
-// (protection pool + auth all-pass) never reaches this kit —
-// it stays in the email lane aimed at the phish desk. The
-// Google/AWS/OVH kits and every non-hyperscaler sender are
-// unchanged (the standard evidence block is byte-identical:
-// mirrorComplaint defaults off).
+//   - (v1.0.69) a details block mirroring the emailed
+//     complaint's evidence, behind a copy-only button.
+// v1.0.70 UPDATE: Michael filed the MSRC form by hand and
+// screenshotted both steps — the Contact step's Additional
+// information box caps at 15,000 characters (the mirror
+// block FIT, ~9,200 used), the Report Details step has
+// pickers, a Source IP box, and a Report notes box capped
+// at 2,000. The standalone copy-details BUTTON is retired;
+// the mirror block itself stays, retargeted as the
+// Additional information step slice, and azure declares
+// per-field steps like the other lanes — all pinned in
+// test-v1070-azure-msrc-steps.js. What THIS suite still pins:
+// the lane's URL/fact data, the printed link, the standard
+// evidence block in the box, the retirement itself, the MS
+// tenant guard, and the lib-level mirror block —
+// buildFormEvidence's opts.mirrorComplaint REMAINS in the
+// lib (the Outlook build's shared engine references it),
+// default off, byte-identical when unused.
 // Run: node tests/test-v1069-azure-form-kit.js
 "use strict";
 const fs = require("fs");
@@ -54,7 +58,7 @@ const FACT_LINE =
   "This host takes abuse reports through its web form; the form is where a case gets opened.";
 
 // ---------- manifest ----------
-ok("manifest version is 1.0.69", manifest.version === "1.0.69",
+ok("manifest version is 1.0.70", manifest.version === "1.0.70",
   "got " + manifest.version);
 ok("permissions unchanged: storage only",
   JSON.stringify(manifest.permissions) === JSON.stringify(["storage"]));
@@ -73,8 +77,9 @@ ok("azure linkText is the exact URL (what's shown is the link)",
   hints.azure && hints.azure.linkText === MSRC_URL);
 ok("azure carries the one factual line, verbatim",
   hints.azure && hints.azure.fact === FACT_LINE);
-ok("azure is flagged details (kit upgrade applies)",
-  hints.azure && hints.azure.details === true);
+ok("azure's v1.0.69 `details` flag is retired (v1.0.70: fields instead)",
+  hints.azure && hints.azure.details === undefined &&
+  Array.isArray(hints.azure.fields));
 ok("google lane unchanged: no fact, no details flag",
   hints.google && hints.google.fact === undefined &&
   hints.google.details === undefined);
@@ -97,27 +102,21 @@ ok("fact line renders from the lane entry, above the instruction note",
   kitSeg.indexOf("if (formLane.fact)") !== -1 &&
   kitSeg.indexOf("formLane.fact") <
     kitSeg.indexOf("Your report details are in the box below"));
-ok("details lanes fill the box with the complaint-mirroring block",
-  kitSeg.indexOf("formLane.details ? { mirrorComplaint: true } : undefined")
-    !== -1);
-ok("the form link renders as a link (lane URL + linkText)",
+ok("v1.0.70: the box fills with the STANDARD block (no mirror wiring left)",
+  kitSeg.indexOf("buildFormEvidence(a) || ") !== -1 &&
+  contentSrc.indexOf("formLane.details") === -1 &&
+  contentSrc.indexOf("{ mirrorComplaint: true }") === -1);
+ok("the form link renders as a link (lane URL + linkText), behind showLink",
+  kitSeg.indexOf("if (formLane.showLink)") !== -1 &&
   kitSeg.indexOf("href: formLane.url") !== -1 &&
   kitSeg.indexOf("formLane.linkText") !== -1 &&
   kitSeg.indexOf('"Abuse form: "') !== -1);
-ok("copy-details button: id + exact label",
-  kitSeg.indexOf('id: "sf-form-details-copy"') !== -1 &&
-  kitSeg.indexOf('"Copy the details for the form"') !== -1);
-const copySlice = kitSeg.indexOf('id: "sf-form-details-copy"') !== -1
-  ? kitSeg.slice(kitSeg.indexOf('id: "sf-form-details-copy"')) : "";
-ok("copy-details copies the box text (select + execCommand + clipboard fallback)",
-  copySlice.indexOf('document.execCommand("copy")') !== -1 &&
-  copySlice.indexOf("navigator.clipboard.writeText(eta.value)") !== -1);
-ok("copy-details does NOT open the form (the copy+open button is the only opener)",
-  copySlice.indexOf("window.open") === -1 &&
-  (kitSeg.match(/window\.open\(/g) || []).length === 1);
-ok("copy-details does NOT record a launch or take a badge",
-  copySlice.indexOf("recordLaunched") === -1 &&
-  kitSeg.indexOf("els.push(copyDetailsBtn)") === -1 &&
+ok("v1.0.70 retirement: the copy-details button is gone entirely",
+  contentSrc.indexOf("sf-form-details-copy") === -1 &&
+  contentSrc.indexOf('"Copy the details for the form"') === -1 &&
+  kitSeg.indexOf("copyDetailsBtn") === -1);
+ok("the copy+open button is still the kit's only form opener + badge target",
+  (kitSeg.match(/window\.open\(/g) || []).length === 1 &&
   kitSeg.indexOf("els.push(formBtn)") !== -1);
 
 // ---------- lib: the complaint-mirroring details block ----------
@@ -245,8 +244,8 @@ ok("panel guard: the msAccountReport check precedes the hyperscaler resolution",
   contentSrc.indexOf("if (a.msAccountReport)") !== -1 &&
   contentSrc.indexOf("if (a.msAccountReport)") <
     contentSrc.indexOf("a.hyperscaler && HYPER_FORM_HINTS[a.hyperscaler]"));
-ok("kit upgrade renders only inside the formLane branch (guard upstream)",
-  contentSrc.indexOf("formLane.details") >
+ok("kit link renders only inside the formLane branch (guard upstream)",
+  contentSrc.indexOf("formLane.showLink") >
     contentSrc.indexOf("if (formLane) {"));
 const MS_RAW = [
   "Received: from mail-centralusazon11021138.outbound.protection.outlook.com ([52.101.62.138]:2623 helo=DM5PR21CU001.outbound.protection.outlook.com)",

@@ -126,6 +126,23 @@ rather than shown empty. The forms' name and email boxes
 are the reporter's own: the kits say so and never prepare
 them.
 
+Follow-up (v1.0.70): the Azure kit joins the field-by-field
+lanes, mapped from the MSRC form as it actually is —
+Michael filed it by hand and screenshotted both steps.
+The form has two text boxes on two different steps. The
+Contact Information step's "Additional information" box
+caps at 15,000 characters, and the v1.0.69 details block
+fits it (his paste used about 9,200), so the block stays
+as that box's step, unchanged. The Report Details step
+splits the rest up: the source IP gets its own box, the
+incident date and time go into date/time/time-zone
+pickers, and the "Report notes" box caps at 2,000
+characters — so the notes step carries a short slice
+instead: the narrative, the message facts, and the
+defanged links, with no headers (they ride in Additional
+information). The kit walks the four boxes in the form's
+order, one copy button each.
+
 - **Your data in their hands**: one more panel action drafts a formal
   data-deletion demand to the sender's company — delete everything,
   opt me out of sale/sharing/tracking, purge backups, make your

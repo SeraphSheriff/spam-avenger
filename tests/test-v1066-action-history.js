@@ -90,7 +90,7 @@ function ok(name, cond, extra) {
 }
 
 // ---------- manifest: version bumped, NOTHING else grew ----------
-ok("manifest version is 1.0.69", manifest.version === "1.0.69",
+ok("manifest version is 1.0.70", manifest.version === "1.0.70",
   "got " + manifest.version);
 ok("permissions unchanged: storage only",
   JSON.stringify(manifest.permissions) === JSON.stringify(["storage"]));
@@ -726,8 +726,8 @@ ok("test5: neither complaint button's whole textContent is " +
    "written anywhere anymore",
   contentSrc.indexOf("formBtn.textContent") === -1 &&
   contentSrc.indexOf("compBtn.textContent") === -1);
-ok("test5: both complaint labels live in .sf-btn-label spans (v1.0.69: a third span carries the Azure kit's copy-details label, same pattern)",
-  (contentSrc.match(/"class": "sf-btn-label"/g) || []).length === 3 &&
+ok("test5: both complaint labels live in .sf-btn-label spans (v1.0.70: back to two — the third span carried the Azure kit's copy-details label, retired with the v1.0.69 single-block kit)",
+  (contentSrc.match(/"class": "sf-btn-label"/g) || []).length === 2 &&
   contentSrc.indexOf("var formBtnLabel = ") !== -1 &&
   contentSrc.indexOf("var compBtnLabel = ") !== -1);
 ok("test5: the swaps write ONLY the label spans",

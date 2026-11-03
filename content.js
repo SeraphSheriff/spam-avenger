@@ -116,20 +116,71 @@
             "literal addresses.",
           copy: "urls" } ] },
     azure: { label: "Microsoft Azure",
-      // v1.0.69: the MSRC URL carries its picks with it —
+      // The MSRC URL carries its picks with it —
       // ThreatType=IpAddress + IncidentType=Spam pre-picked
       // (Michael's link, Nov 2 2026, out of his Outlook test of
       // an Azure-hosted spam whose panel only offered the
-      // abuse@microsoft.com email). The `fact` line and the
-      // `details` flag drive the upgraded kit below: one
-      // factual line, the form link shown as a link, and a
-      // details block mirroring the emailed complaint's
-      // evidence with its own copy button — his "copy paste
-      // kind of deal" instead of just "go there, do this."
+      // abuse@microsoft.com email). `fact` is his one
+      // information line, and `showLink` prints the
+      // parameterized link under the evidence box — both
+      // stay. v1.0.70 reworks the kit around the form's real
+      // shape, from Michael's screenshots of his hand filing
+      // (Nov 2 2026): the form has TWO text boxes on two
+      // steps. The Contact Information step's Additional
+      // information box caps at 15,000 characters — the
+      // v1.0.69 mirror-complaint details block (8000-char
+      // header cap) FITS it (his paste used ~9,200), so the
+      // block stays, retargeted as that box's step slice
+      // ("additionalInfo"). The Report Details step's
+      // Report notes box caps at 2,000, so it gets a short
+      // slice instead ("msrcNotes": facts + defanged links,
+      // no headers). Between them sit the Source IP box and
+      // the Incident date / time / Time zone pickers. Azure
+      // now declares `fields` like the other three lanes —
+      // one step per real box, in the form's order, each
+      // slice built by lib buildFormFieldEvidence — and the
+      // evidence box above the steps holds the standard
+      // block, same as theirs. The old standalone
+      // copy-details button is retired; the steps carry
+      // their own copy buttons.
       url: "https://msrc.microsoft.com/report/abuse?ThreatType=IpAddress&IncidentType=Spam",
       linkText: "https://msrc.microsoft.com/report/abuse?ThreatType=IpAddress&IncidentType=Spam",
       fact: "This host takes abuse reports through its web form; the form is where a case gets opened.",
-      details: true }
+      showLink: true,
+      fieldsIntro: "The form's Contact Information step " +
+        "comes first \u2014 its name and email boxes are " +
+        "yours to fill in, and Spam Avenger never prepares " +
+        "them. The steps below cover the form's evidence " +
+        "boxes, in the form's order.",
+      fields: [
+        { box: "Additional information",
+          help: "On the form's Contact Information step. " +
+            "This is the big paste: the full report, with " +
+            "the complete headers. The box caps at 15,000 " +
+            "characters, and this copy fits it.",
+          copy: "additionalInfo" },
+        { box: "Source IP address",
+          help: "On the Report Details step, the form gives " +
+            "the source IP its own box. The Source port, " +
+            "Destination IP address, and Destination port " +
+            "boxes are optional \u2014 for email spam, leave " +
+            "them blank.",
+          copy: "ip" },
+        { box: "Incident date and time",
+          help: "The form splits this into three required " +
+            "boxes: Incident date, Incident time, and Time " +
+            "zone. The box below gives the message's moment " +
+            "in UTC \u2014 set the form's date and time boxes " +
+            "from it, and pick UTC/GMT in the Time zone box " +
+            "if it's offered.",
+          copy: "incidentStamp" },
+        { box: "Report notes",
+          help: "On the Report Details step. This box caps " +
+            "at 2,000 characters, so this copy is the short " +
+            "version: the facts and the defanged links, no " +
+            "headers \u2014 the full headers ride in the " +
+            "Additional information paste above.",
+          copy: "msrcNotes" } ] }
   };
 
   // The fourth form lane: OVHcloud (same shape as the table
@@ -1410,19 +1461,21 @@
           " abuse form"));
         var eta = h("textarea", { id: "sf-evidence-text" });
         eta.readOnly = true;
-        // v1.0.69: lanes flagged `details` (azure) fill the box
-        // with the complaint-mirroring block — server name and
-        // defanged links join the standard facts — because
-        // that block is what the "Copy the details for the
-        // form" button below puts on the clipboard. Other
-        // lanes get the standard block, unchanged.
-        eta.value = window.SpamAvenger.buildFormEvidence(a,
-          formLane.details ? { mirrorComplaint: true } : undefined) || "";
+        // The box holds the standard form block (lib
+        // buildFormEvidence) for every form lane. (v1.0.69
+        // filled azure's box with the complaint-mirroring
+        // block; since v1.0.70 that block rides as azure's
+        // "Additional information" step slice instead — the
+        // MSRC form's 15,000-character box is its real home.)
+        eta.value = window.SpamAvenger.buildFormEvidence(a) || "";
         kw.appendChild(eta);
-        // v1.0.69 (azure): the form link itself, shown as a
-        // link under the box — the exact parameterized MSRC
-        // URL from the table, not just a button's side effect.
-        if (formLane.details) {
+        // Lanes flagged `showLink` (azure): the form link
+        // itself, shown as a link under the box — the exact
+        // parameterized MSRC URL from the table, not just a
+        // button's side effect. (v1.0.69 tied this to the
+        // retired `details` flag; the link stays, the flag
+        // is its own now.)
+        if (formLane.showLink) {
           kw.appendChild(h("p", { "class": "sf-fine" },
             "Abuse form: ",
             h("a", { href: formLane.url, target: "_blank",
@@ -1485,60 +1538,28 @@
           }
           applyLaunchedBadge("complaint", now);
         });
-        // v1.0.69 (azure, Michael's "copy paste kind of deal",
-        // Nov 2): a copy-only button for the details block, for
-        // filing the form by hand via the link above. It does
-        // NOT open the form and does NOT record a launch —
-        // nothing has been filed yet; the copy+open button
-        // stays the lane's launch (badge, status line and all).
-        // Its label lives in its own span for the same
-        // swap-safety reason as the form button's.
+        // v1.0.70: the copy-only "Copy the details for the
+        // form" button azure carried in v1.0.69 is retired
+        // with the single-block kit it served — the per-field
+        // steps below each carry their own copy button now.
         var kitActions = h("div", { "class": "sf-actions" });
-        if (formLane.details) {
-          var copyDetailsLabel = h("span", { "class": "sf-btn-label" },
-            "Copy the details for the form");
-          var copyDetailsBtn = h("button", { id: "sf-form-details-copy",
-            "class": "sf-btn-blue", "type": "button" }, copyDetailsLabel);
-          copyDetailsBtn.addEventListener("click", function () {
-            var copied = false;
-            try {
-              eta.focus();
-              eta.select();
-              copied = document.execCommand("copy");
-            } catch (e) {}
-            if (!copied && navigator.clipboard) {
-              navigator.clipboard.writeText(eta.value).catch(function () {});
-              copied = true; // best-effort; the box text stays selected
-            }
-            var origLabel = copyDetailsLabel.textContent;
-            copyDetailsLabel.textContent = copied
-              ? "Copied! Paste into the form's details field (Ctrl+V or right-click \u2192 Paste)"
-              : "Select the box text above and copy it (Ctrl+C)";
-            setTimeout(function () {
-              copyDetailsLabel.textContent = origLabel;
-            }, 6000);
-          });
-          kitActions.appendChild(copyDetailsBtn);
-        }
         kitActions.appendChild(formBtn);
         kw.appendChild(kitActions);
         // v1.0.69 (combined): per-field steps for the forms
         // whose boxes each want a different slice of the
-        // evidence (Google Cloud, AWS, OVHcloud — the lane
-        // entry's `fields` list). Michael's rule from the
-        // Azure test, generalized: don't just point at the
-        // form, hand over what goes in each box. Each step
-        // names the form's box, says the one thing Joe has
-        // to do with it, and — when the box takes a paste —
-        // shows that field's slice in its own box with its
-        // own Copy button. The copy buttons are copy-only,
-        // like the Azure kit's: no form open, no launched
-        // record (nothing is filed until Joe submits the
-        // form himself). Steps whose slice can't be built
-        // (no URLs for a URL box, no date that parses) are
-        // skipped outright rather than shown empty. The
-        // Azure lane carries no `fields` — its one details
-        // box is the one-field case, rendered above.
+        // evidence (the lane entry's `fields` list). Michael's
+        // rule from the Azure test, generalized: don't just
+        // point at the form, hand over what goes in each box.
+        // Each step names the form's box, says the one thing
+        // Joe has to do with it, and — when the box takes a
+        // paste — shows that field's slice in its own box
+        // with its own Copy button. The copy buttons are
+        // copy-only: no form open, no launched record (nothing
+        // is filed until Joe submits the form himself). Steps
+        // whose slice can't be built (no URLs for a URL box,
+        // no date that parses) are skipped outright rather
+        // than shown empty. All four lanes declare `fields`
+        // since v1.0.70, azure included.
         if (formLane.fields && formLane.fields.length) {
           var fwrap = h("div", { "class": "sf-form-fields" });
           fwrap.appendChild(h("b", null,
