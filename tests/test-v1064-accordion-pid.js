@@ -30,7 +30,7 @@ function ok(name, cond, extra) {
 }
 
 // ---------- manifest ----------
-ok("manifest version is 1.0.66", manifest.version === "1.0.66",
+ok("manifest version is 1.0.67", manifest.version === "1.0.67",
   "got " + manifest.version);
 ok("manifest description within Chrome's 132-char limit",
   typeof manifest.description === "string" &&

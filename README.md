@@ -68,6 +68,21 @@ own servers (Google, Microsoft, Yahoo, etc.) — their IPs show up in
 headers for your own mail too, and reporting them would hit the wrong
 target. It tells you when that's the case.
 
+One exception, in the same Report Abuse lane (v1.0.67): if a message
+was sent by a **real Microsoft 365 account** — it arrived through
+Microsoft's Outlook protection servers (`*.outbound.protection.outlook.com`)
+and SPF, DKIM, and DMARC all pass for the sender's domain, so the
+account is real, not spoofed — the abuse complaint switches its
+target. Instead of a host complaint against Microsoft's shared IP
+(a complaint about Microsoft, to Microsoft, that goes nowhere), the
+report goes to Microsoft's phishing desk
+(phish@office365.microsoft.com) and reports the **account itself**:
+sender account, sending server, the authentication verdicts, and
+the full headers in the body. (Microsoft's filters reject raw .eml
+attachments and the compose can't attach one anyway — headers in
+the body are the evidence that survives.) Same lane, same flow:
+you review it and click Send, like every complaint.
+
 - **Your data in their hands**: one more panel action drafts a formal
   data-deletion demand to the sender's company — delete everything,
   opt me out of sale/sharing/tracking, purge backups, make your

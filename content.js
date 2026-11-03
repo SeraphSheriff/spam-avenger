@@ -1234,7 +1234,16 @@
       // first and wins if both ever fire (impossible in
       // practice — the networks are disjoint).
       var formLane = null;
-      if (a.hyperscaler && HYPER_FORM_HINTS[a.hyperscaler]) {
+      // v1.0.67: the Microsoft tenant-account case (a.msAccountReport,
+      // set by lib/analyze.js) stays in THIS email lane — its
+      // complaint already targets phish@office365.microsoft.com
+      // about the account. It must never be diverted to the Azure
+      // form kit: a protection-pool IP's RDAP can read as a
+      // Microsoft/MSFT block, but this is a mailbox tenant
+      // account, not a rented Azure VM.
+      if (a.msAccountReport) {
+        formLane = null;
+      } else if (a.hyperscaler && HYPER_FORM_HINTS[a.hyperscaler]) {
         formLane = HYPER_FORM_HINTS[a.hyperscaler];
       } else if (/ovh/i.test(c.to + " " + (a.org || ""))) {
         formLane = OVH_FORM_HINT;
@@ -1341,6 +1350,25 @@
       badgeTargets.complaint = { els: [compSec.toggle] };
       var cw = h("div", { "class": "sf-complaint" },
         h("b", null, "Ready-to-send complaint"));
+      // v1.0.67 (Michael's correction, Nov 2 2026): NOT a
+      // separate lane — this is the same Report Abuse lane,
+      // switched. When the traced origin is Microsoft's Outlook
+      // protection pool and the account's SPF/DKIM/DMARC all
+      // pass, the complaint below is addressed to Microsoft's
+      // phishing desk (phish@office365.microsoft.com) and
+      // reports the sender's ACCOUNT, because the IP is
+      // Microsoft's shared pool and a host complaint against
+      // it would hit the wrong target. The note says so; the
+      // section, textarea, and Open-in-Gmail flow are the
+      // ordinary complaint lane's, unchanged.
+      if (a.msAccountReport) {
+        cw.appendChild(h("p", { "class": "sf-note" },
+          "This came from a real Microsoft account on " +
+          "Microsoft's shared Outlook protection servers, so " +
+          "this report goes to Microsoft's phishing desk " +
+          "about the account itself \u2014 not a host complaint " +
+          "against the shared IP."));
+      }
       var ta = h("textarea", { id: "sf-complaint-text" });
       ta.readOnly = true;
       ta.value = "To: " + c.to + "\nSubject: " + c.subject + "\n\n" + c.body;
