@@ -46,10 +46,75 @@
       // v1.0.65: the one form-specific pick Joe has to make on
       // the Google form — the spam these reports cover comes
       // off Compute Engine VMs, so that's the service to pick.
-      pick: "For the service question, pick Compute Engine." },
+      pick: "For the service question, pick Compute Engine.",
+      // v1.0.69 (combined): per-field steps — the Google form
+      // (verified live 2026-11-02) splits the report across
+      // its own boxes, and one paste fits none of them: its
+      // "Abuse details" box caps at 1,000 characters and the
+      // headers go in as an uploaded log file instead. Each
+      // field below names the form's box and carries the
+      // evidence slice that box wants (lib
+      // buildFormFieldEvidence builds the slices). The form's
+      // name/email boxes are the reporter's own — steps never
+      // cover identity fields, only evidence fields.
+      fieldsIntro: "The form's first boxes are your name and " +
+        "email address \u2014 those are yours to fill in, and " +
+        "Spam Avenger never prepares them. The steps below " +
+        "cover the form's evidence fields, one box at a time.",
+      fields: [
+        { box: "Abuse date",
+          help: "The day the message arrived, in the date " +
+            "box's YYYY-MM-DD shape.",
+          copy: "date" },
+        { box: "Abuse details",
+          help: "Google caps this box at 1,000 characters, " +
+            "so this copy is the short version: the IP, the " +
+            "message facts, and the links. The full headers " +
+            "go in the logs upload below, not here.",
+          copy: "googleDetails" },
+        { box: "Additional logs",
+          help: "This one is a file upload, not a paste box. " +
+            "Copy the log text, save it as a plain text file " +
+            "(for example abuse-log.txt), and upload that file.",
+          copy: "logs" } ] },
     aws: { label: "Amazon AWS",
       url: "https://repost.aws/knowledge-center/report-aws-abuse",
-      linkText: "repost.aws/knowledge-center/report-aws-abuse" },
+      linkText: "repost.aws/knowledge-center/report-aws-abuse",
+      // v1.0.69 (combined): per-field steps, mapped from what
+      // AWS itself says a report must carry (Trust & Safety
+      // reporting FAQ + the report-aws-abuse knowledge-center
+      // article, checked 2026-11-02: type of abuse, dates and
+      // times with the time zone, source IP addresses, log
+      // extracts, and the specific URLs for abusive content).
+      // The form itself is a script-driven page whose boxes
+      // could not be read directly, so these steps follow
+      // AWS's published requirements rather than its pixels.
+      fieldsIntro: "The form starts by asking who you " +
+        "are \u2014 your name and email are yours to fill in, " +
+        "and Spam Avenger never prepares them. The steps " +
+        "below cover the evidence AWS asks a report to carry.",
+      fields: [
+        { box: "Type of abuse",
+          help: "Pick the spam / abusive-email option " +
+            "\u2014 AWS routes the report by it. Nothing to " +
+            "paste here.",
+          copy: null },
+        { box: "Source IP and date/time",
+          help: "AWS asks for the source IP, the date and " +
+            "time of the incident, and the time zone " +
+            "\u2014 one incident block, dates in ISO 8601.",
+          copy: "awsIncident" },
+        { box: "Log extracts",
+          help: "AWS asks for log extracts that show the " +
+            "activity. For an email, the log is the " +
+            "message's Received line and its full headers.",
+          copy: "logs" },
+        { box: "URLs in the message",
+          help: "For abusive content AWS asks for the " +
+            "specific URLs. These are un-defanged, exactly " +
+            "as they appeared \u2014 a URL box needs the " +
+            "literal addresses.",
+          copy: "urls" } ] },
     azure: { label: "Microsoft Azure",
       // v1.0.69: the MSRC URL carries its picks with it —
       // ThreatType=IpAddress + IncidentType=Spam pre-picked
@@ -73,7 +138,45 @@
   // retired v1.0.27 hint chip linked.
   var OVH_FORM_HINT = { label: "OVHcloud",
     url: "https://www.ovhcloud.com/en/abuse/",
-    linkText: "ovhcloud.com/en/abuse" };
+    linkText: "ovhcloud.com/en/abuse",
+    // v1.0.69 (combined): per-field steps, mapped from
+    // OVHcloud's own abuse-form terms (checked 2026-11-02: a
+    // valid report gives the location of the activity — a
+    // URL or an IP address — a description of the
+    // infringement, and logs/technical elements; OVHcloud's
+    // FAQ adds that a category is picked first and that only
+    // logs and technical elements are forwarded to the
+    // service owner, with no personal data in those fields).
+    fieldsIntro: "The form asks who you are and wants an " +
+      "email address for the outcome \u2014 those are yours " +
+      "to fill in, and Spam Avenger never prepares them. " +
+      "The steps below cover the report's evidence fields.",
+    fields: [
+      { box: "Category",
+        help: "Pick the category for unsolicited email / " +
+          "spam \u2014 OVHcloud routes the report by it. " +
+          "Nothing to paste here.",
+        copy: null },
+      { box: "Location",
+        help: "OVHcloud asks for the location of the " +
+          "reported activity, a URL or an IP address. For " +
+          "email spam that is the sending IP address.",
+        copy: "ip" },
+      { box: "Description",
+        help: "OVHcloud requires a description of what " +
+          "happened, and sends it to the service owner " +
+          "\u2014 so this copy is facts only: what " +
+          "arrived, from where, and when. No names, no " +
+          "personal information.",
+        copy: "description" },
+      { box: "Logs / technical elements",
+        help: "OVHcloud forwards only logs and technical " +
+          "elements to the service owner, and says to keep " +
+          "personal data out of these fields. This copy is " +
+          "the message's Received line and full headers " +
+          "\u2014 give it a once-over for your own address " +
+          "before you submit.",
+        copy: "logs" } ] };
 
   // Tiny DOM builder: h("div", {class: "x", id: "y"}, childEl, "text", ...)
   function h(tag, attrs) {
@@ -1419,6 +1522,81 @@
         }
         kitActions.appendChild(formBtn);
         kw.appendChild(kitActions);
+        // v1.0.69 (combined): per-field steps for the forms
+        // whose boxes each want a different slice of the
+        // evidence (Google Cloud, AWS, OVHcloud — the lane
+        // entry's `fields` list). Michael's rule from the
+        // Azure test, generalized: don't just point at the
+        // form, hand over what goes in each box. Each step
+        // names the form's box, says the one thing Joe has
+        // to do with it, and — when the box takes a paste —
+        // shows that field's slice in its own box with its
+        // own Copy button. The copy buttons are copy-only,
+        // like the Azure kit's: no form open, no launched
+        // record (nothing is filed until Joe submits the
+        // form himself). Steps whose slice can't be built
+        // (no URLs for a URL box, no date that parses) are
+        // skipped outright rather than shown empty. The
+        // Azure lane carries no `fields` — its one details
+        // box is the one-field case, rendered above.
+        if (formLane.fields && formLane.fields.length) {
+          var fwrap = h("div", { "class": "sf-form-fields" });
+          fwrap.appendChild(h("b", null,
+            "Filling in the " + formLane.label +
+            " form, field by field"));
+          if (formLane.fieldsIntro) {
+            fwrap.appendChild(h("p", { "class": "sf-note" },
+              formLane.fieldsIntro));
+          }
+          formLane.fields.forEach(function (fld) {
+            var fTxt = fld.copy
+              ? window.SpamAvenger.buildFormFieldEvidence(a, fld.copy)
+              : null;
+            if (fld.copy && !fTxt) return; // no slice, no step
+            var fBlock = h("div", { "class": "sf-form-field" });
+            fBlock.appendChild(h("b", null,
+              "For the form\u2019s \u201C" + fld.box +
+              "\u201D field"));
+            if (fld.help) {
+              fBlock.appendChild(h("p", { "class": "sf-fine" },
+                fld.help));
+            }
+            if (fld.copy) {
+              var fTa = h("textarea", {});
+              fTa.readOnly = true;
+              fTa.value = fTxt;
+              fBlock.appendChild(fTa);
+              var fBtn = h("button", { "class": "sf-btn-blue",
+                "type": "button" },
+                "Copy for the " + fld.box + " field");
+              fBtn.addEventListener("click", function () {
+                var copied = false;
+                try {
+                  fTa.focus();
+                  fTa.select();
+                  copied = document.execCommand("copy");
+                } catch (e) {}
+                if (!copied && navigator.clipboard) {
+                  navigator.clipboard.writeText(fTa.value)
+                    .catch(function () {});
+                  copied = true; // best-effort; text stays selected
+                }
+                var origLabel = fBtn.textContent;
+                fBtn.textContent = copied
+                  ? "Copied! Paste it into the form\u2019s " +
+                    fld.box + " field (Ctrl+V or right-click " +
+                    "\u2192 Paste)"
+                  : "Select the box above and copy it (Ctrl+C)";
+                setTimeout(function () {
+                  fBtn.textContent = origLabel;
+                }, 6000);
+              });
+              fBlock.appendChild(fBtn);
+            }
+            fwrap.appendChild(fBlock);
+          });
+          kw.appendChild(fwrap);
+        }
         // v1.0.66: launched-status line for the complaint lane.
         complaintStatusEl = h("p", { "class": "sf-fine sf-status",
           "id": "sf-complaint-status" }, "");

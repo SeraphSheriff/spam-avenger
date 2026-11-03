@@ -93,7 +93,8 @@ the same DNS lookups the panel already makes), the note and
 the report both say so: a domain that exists only to send
 mail. On any DNS error or uncertainty, nothing is claimed.
 
-Follow-up (v1.0.69): the Azure form kit gets the treatment
+Follow-up (v1.0.69): the form kits stop handing you one
+paste for every form. The Azure kit gets the treatment
 Michael asked for after testing the Outlook build on an
 Azure-hosted spam whose panel only offered the email. The
 MSRC link now carries its picks with it
@@ -105,8 +106,25 @@ mirrors the emailed complaint's facts — the server name and
 the defanged links join the source IP, date, From, Subject,
 and the full headers, under the same caps — and a **Copy
 the details for the form** button copies it for filing the
-form by hand. The Google Cloud, AWS, and OVHcloud kits are
-unchanged.
+form by hand.
+
+The Google Cloud, AWS, and OVHcloud forms don't share
+that shape — each splits the report across its own boxes —
+so their kits now walk the form field by field. Each step
+names the form's box, gives a one-line instruction, and
+carries its own Copy button with exactly the slice that
+box wants: Google's "Abuse details" block is sized to the
+form's 1,000-character cap with the full headers routed to
+its logs upload instead; AWS gets an incident block (type,
+ISO date/time, time zone, source IP) plus log extracts and
+the message's URLs; OVHcloud gets the location IP, a
+facts-only description (OVHcloud forwards the description
+to the service owner, so it carries no personal
+information), and the logs separately. Steps whose slice
+can't be built — no URLs for a URL box — are skipped
+rather than shown empty. The forms' name and email boxes
+are the reporter's own: the kits say so and never prepare
+them.
 
 - **Your data in their hands**: one more panel action drafts a formal
   data-deletion demand to the sender's company — delete everything,

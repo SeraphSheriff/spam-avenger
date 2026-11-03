@@ -121,6 +121,13 @@
   margin: 6px 0;
   resize: vertical;
 }
+/* v1.0.69: per-field form steps inside the form kit — each
+   field's slice gets a shorter box than the main evidence
+   block, and its own spacing from the next field. */
+#spam-avenger-panel .sf-form-fields { margin-top: 10px; }
+#spam-avenger-panel .sf-form-field { margin: 10px 0; }
+#spam-avenger-panel .sf-form-field textarea { height: 72px; }
+#spam-avenger-panel .sf-form-field button { margin-top: 2px; }
 #spam-avenger-panel .sf-actions { display: flex; gap: 8px; margin-bottom: 6px; }
 #spam-avenger-panel .sf-actions button {
   cursor: pointer;
