@@ -51,8 +51,20 @@
       url: "https://repost.aws/knowledge-center/report-aws-abuse",
       linkText: "repost.aws/knowledge-center/report-aws-abuse" },
     azure: { label: "Microsoft Azure",
-      url: "https://msrc.microsoft.com/report/abuse",
-      linkText: "msrc.microsoft.com/report/abuse" }
+      // v1.0.69: the MSRC URL carries its picks with it —
+      // ThreatType=IpAddress + IncidentType=Spam pre-picked
+      // (Michael's link, Nov 2 2026, out of his Outlook test of
+      // an Azure-hosted spam whose panel only offered the
+      // abuse@microsoft.com email). The `fact` line and the
+      // `details` flag drive the upgraded kit below: one
+      // factual line, the form link shown as a link, and a
+      // details block mirroring the emailed complaint's
+      // evidence with its own copy button — his "copy paste
+      // kind of deal" instead of just "go there, do this."
+      url: "https://msrc.microsoft.com/report/abuse?ThreatType=IpAddress&IncidentType=Spam",
+      linkText: "https://msrc.microsoft.com/report/abuse?ThreatType=IpAddress&IncidentType=Spam",
+      fact: "This host takes abuse reports through its web form; the form is where a case gets opened.",
+      details: true }
   };
 
   // The fourth form lane: OVHcloud (same shape as the table
@@ -1274,6 +1286,14 @@
         // copy justified the lane (deflection policy, why no
         // email) — "full of shit no Joe user gives a shit
         // about," his words, and he's right: it's gone.
+        // v1.0.69: a lane can still carry ONE factual line
+        // (azure's `fact`: the form is where a case gets
+        // opened) — information Michael explicitly asked for,
+        // rendered above the instruction note. It is a fact,
+        // not the old justification copy.
+        if (formLane.fact) {
+          kw.appendChild(h("p", { "class": "sf-note" }, formLane.fact));
+        }
         kw.appendChild(h("p", { "class": "sf-note" },
           "Your report details are in the box below. The " +
           "button copies them to your clipboard and opens the " +
@@ -1287,8 +1307,24 @@
           " abuse form"));
         var eta = h("textarea", { id: "sf-evidence-text" });
         eta.readOnly = true;
-        eta.value = window.SpamAvenger.buildFormEvidence(a) || "";
+        // v1.0.69: lanes flagged `details` (azure) fill the box
+        // with the complaint-mirroring block — server name and
+        // defanged links join the standard facts — because
+        // that block is what the "Copy the details for the
+        // form" button below puts on the clipboard. Other
+        // lanes get the standard block, unchanged.
+        eta.value = window.SpamAvenger.buildFormEvidence(a,
+          formLane.details ? { mirrorComplaint: true } : undefined) || "";
         kw.appendChild(eta);
+        // v1.0.69 (azure): the form link itself, shown as a
+        // link under the box — the exact parameterized MSRC
+        // URL from the table, not just a button's side effect.
+        if (formLane.details) {
+          kw.appendChild(h("p", { "class": "sf-fine" },
+            "Abuse form: ",
+            h("a", { href: formLane.url, target: "_blank",
+              rel: "noopener" }, formLane.linkText)));
+        }
         // v1.0.64 (Michael's call, 2026-10-28, after his live
         // test): ONE button does the whole lane — it copies the
         // evidence to the clipboard, then opens the form, so the
@@ -1346,7 +1382,43 @@
           }
           applyLaunchedBadge("complaint", now);
         });
-        kw.appendChild(h("div", { "class": "sf-actions" }, formBtn));
+        // v1.0.69 (azure, Michael's "copy paste kind of deal",
+        // Nov 2): a copy-only button for the details block, for
+        // filing the form by hand via the link above. It does
+        // NOT open the form and does NOT record a launch —
+        // nothing has been filed yet; the copy+open button
+        // stays the lane's launch (badge, status line and all).
+        // Its label lives in its own span for the same
+        // swap-safety reason as the form button's.
+        var kitActions = h("div", { "class": "sf-actions" });
+        if (formLane.details) {
+          var copyDetailsLabel = h("span", { "class": "sf-btn-label" },
+            "Copy the details for the form");
+          var copyDetailsBtn = h("button", { id: "sf-form-details-copy",
+            "class": "sf-btn-blue", "type": "button" }, copyDetailsLabel);
+          copyDetailsBtn.addEventListener("click", function () {
+            var copied = false;
+            try {
+              eta.focus();
+              eta.select();
+              copied = document.execCommand("copy");
+            } catch (e) {}
+            if (!copied && navigator.clipboard) {
+              navigator.clipboard.writeText(eta.value).catch(function () {});
+              copied = true; // best-effort; the box text stays selected
+            }
+            var origLabel = copyDetailsLabel.textContent;
+            copyDetailsLabel.textContent = copied
+              ? "Copied! Paste into the form's details field (Ctrl+V or right-click \u2192 Paste)"
+              : "Select the box text above and copy it (Ctrl+C)";
+            setTimeout(function () {
+              copyDetailsLabel.textContent = origLabel;
+            }, 6000);
+          });
+          kitActions.appendChild(copyDetailsBtn);
+        }
+        kitActions.appendChild(formBtn);
+        kw.appendChild(kitActions);
         // v1.0.66: launched-status line for the complaint lane.
         complaintStatusEl = h("p", { "class": "sf-fine sf-status",
           "id": "sf-complaint-status" }, "");

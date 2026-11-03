@@ -93,6 +93,21 @@ the same DNS lookups the panel already makes), the note and
 the report both say so: a domain that exists only to send
 mail. On any DNS error or uncertainty, nothing is claimed.
 
+Follow-up (v1.0.69): the Azure form kit gets the treatment
+Michael asked for after testing the Outlook build on an
+Azure-hosted spam whose panel only offered the email. The
+MSRC link now carries its picks with it
+(https://msrc.microsoft.com/report/abuse?ThreatType=IpAddress&IncidentType=Spam)
+and the kit shows that link as a link, with one factual
+line: this host takes abuse reports through its web form;
+the form is where a case gets opened. The evidence block
+mirrors the emailed complaint's facts — the server name and
+the defanged links join the source IP, date, From, Subject,
+and the full headers, under the same caps — and a **Copy
+the details for the form** button copies it for filing the
+form by hand. The Google Cloud, AWS, and OVHcloud kits are
+unchanged.
+
 - **Your data in their hands**: one more panel action drafts a formal
   data-deletion demand to the sender's company — delete everything,
   opt me out of sale/sharing/tracking, purge backups, make your

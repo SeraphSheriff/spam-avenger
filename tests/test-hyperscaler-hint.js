@@ -342,7 +342,7 @@ ok("kit instruction copy ships (v1.0.65 Joe copy: clipboard, paste, pick — no 
 ok("kit renders the evidence box (title + textarea + lib builder)",
   kitSeg.indexOf("Form evidence \\u2014 paste into the ") !== -1 &&
   kitSeg.indexOf('id: "sf-evidence-text"') !== -1 &&
-  kitSeg.indexOf("buildFormEvidence(a)") !== -1);
+  kitSeg.indexOf("buildFormEvidence(a,") !== -1);
 ok("kit form button: id, blue, copy+open label, copies evidence then opens the lane URL",
   kitSeg.indexOf('id: "sf-open-abuse-form"') !== -1 &&
   kitSeg.indexOf('"class": "sf-btn-blue"') !== -1 &&
@@ -385,9 +385,10 @@ ok("google lane: label + verified form URL",
 ok("aws lane: label + verified abuse-report URL",
   hints.aws && hints.aws.label === "Amazon AWS" &&
   hints.aws.url === "https://repost.aws/knowledge-center/report-aws-abuse");
-ok("azure lane: label + verified MSRC abuse URL",
+ok("azure lane: label + MSRC abuse URL (v1.0.69: parameterized — picks pre-picked; the full kit upgrade is pinned in test-v1069)",
   hints.azure && hints.azure.label === "Microsoft Azure" &&
-  hints.azure.url === "https://msrc.microsoft.com/report/abuse");
+  hints.azure.url ===
+    "https://msrc.microsoft.com/report/abuse?ThreatType=IpAddress&IncidentType=Spam");
 const mo = contentSrc.match(/var OVH_FORM_HINT = (\{[\s\S]*?\});/);
 ok("OVH_FORM_HINT extractable from content.js", !!mo);
 const ovhHint = mo ? vm.runInNewContext("(" + mo[1] + ")") : {};
