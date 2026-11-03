@@ -143,6 +143,35 @@ defanged links, with no headers (they ride in Additional
 information). The kit walks the four boxes in the form's
 order, one copy button each.
 
+Follow-up (v1.0.70): the panel traces the sender's domain
+the way the RrSG's ACID tool splits a case — because a fraud
+operation is three rented services, and the complaint above
+only reaches the one that sent the mail. Two more lanes
+appear under it once the lookups land. **Website host**: the
+From domain's A record (CNAMEs followed) names the server
+its website sits on; that IP's ownership record names the
+hoster, and the lane carries a hosting complaint — you host
+the website for a domain running a fraud operation, here is
+the domain, the address it resolves to, and the day that
+was checked; investigate and suspend hosting. If the
+website sits on a form-only host (a hyperscaler cloud or
+OVHcloud), the lane shows that host's form kit instead,
+with evidence worded for a website. **Registrar**: the
+domain's own registration record names the registrar and
+its abuse contact, shows the registration date next to the
+message's arrival — a domain registered within 30 days
+before the message landed gets flagged in plain words as
+the fresh-domain fraud tell — and names the registrant when
+the record doesn't hide them. A DNS Abuse complaint to the
+registrar's desk rides along: the domain itself as fraud
+infrastructure, registered on this date, sending fraud
+within days. Both lanes use public records only (DNS and
+RDAP, the same sources as the mail trace), both stay silent
+when the records don't answer, and neither appears for the
+big mailbox providers' own domains — a Gmail sender's
+website host and registrar are corporate noise next to the
+Report lane's advice.
+
 - **Your data in their hands**: one more panel action drafts a formal
   data-deletion demand to the sender's company — delete everything,
   opt me out of sale/sharing/tracking, purge backups, make your
@@ -156,9 +185,10 @@ order, one copy button each.
 ## Privacy
 
 Everything runs inside your browser. The only network requests are
-lookups **about the spammer's IP address** (RDAP ownership records and
-reverse DNS). Your emails, your address book, and your Gmail account
-are never touched, uploaded, or sent anywhere.
+lookups **about the spammer** — RDAP ownership records and reverse
+DNS for the sending IP, and public DNS and domain-registration
+records for the sender's domain. Your emails, your address book, and
+your Gmail account are never touched, uploaded, or sent anywhere.
 
 ## Limits (honest ones)
 

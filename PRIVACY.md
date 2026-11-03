@@ -1,6 +1,6 @@
 # Privacy Policy — Spam Avenger for Gmail
 
-Last updated: October 17, 2026
+Last updated: November 3, 2026
 
 **Short version: this extension does not collect, store, transmit, or
 sell any of your personal data. Period.**
@@ -16,7 +16,12 @@ extension:
 3. Looks up public registration records for that IP (RDAP) and its
    reverse-DNS name, to identify the network owner and their published
    abuse contact.
-4. Generates an abuse-complaint draft that you review, copy, and send
+4. Traces the sender's domain in the same public records: resolves
+   the address of the website the domain points at and looks that
+   address up the same way (to identify the website's hoster), and
+   reads the domain's own public registration record (its registrar,
+   registration date, and registrant when the record publishes one).
+5. Generates abuse-complaint drafts that you review, copy, and send
    yourself.
 
 ## Pre-filling the FTC and Google Safe Browsing report forms
@@ -54,9 +59,16 @@ never about you:
 
 - **RDAP lookups** (`rdap.arin.net`, `rdap.db.ripe.net`,
   `rdap.apnic.net`, `rdap.lacnic.net`, `rdap.afrinic.net`) — public
-  internet-number registration records for the originating IP.
-- **Reverse-DNS lookups** (`dns.google`) — the public hostname of the
-  originating IP.
+  internet-number registration records for the originating IP and
+  for the IP address the sender domain's website resolves to.
+- **DNS lookups** (`dns.google`) — the public hostname of the
+  originating IP, and the public address records of the sender's
+  domain.
+- **Domain RDAP lookups** (the registry RDAP server for the sender
+  domain's top-level domain, located via the public IANA bootstrap
+  at `data.iana.org`, with `rdap.org` as the fallback directory) —
+  the domain's public registration record: registrar, registration
+  date, and registrant when published.
 
 ## What we do NOT do
 
@@ -74,7 +86,7 @@ never about you:
 - **Access to mail.google.com** — required to add the shield button to
   Gmail and read the headers of the message you choose to analyze.
 - **Host access to the RDAP and DNS endpoints above** — required for
-  the IP-ownership lookups described above.
+  the IP-ownership and domain-registration lookups described above.
 - **Storage** — required to hold the case details locally, in your
   browser only, so the FTC and Google Safe Browsing report forms can
   be pre-filled as described above; and to keep the name, email, ZIP,

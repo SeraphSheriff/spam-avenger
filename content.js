@@ -1762,6 +1762,273 @@
         reportPhishBtn = rb;
       }
     }
+    // v1.0.70: the ACID-style sender-domain trace — lanes 2
+    // and 3 beside the mail lane above. The RrSG's ACID tool
+    // splits an abuse case three ways (mail host / website
+    // host / registrar) because a fraud operation rents all
+    // three separately; Michael's Nov 3 2026 hand-run on a
+    // real case found two desks the mail trace never sees.
+    // The lib traces the From domain lazily
+    // (traceSenderDomain): A-record resolution (CNAMEs
+    // followed) -> IP RDAP for the website host, and domain
+    // RDAP for the registrar block. It runs HERE, after the
+    // mail lanes have rendered, never inside investigate() —
+    // the mail pipeline's network behavior is pinned, and
+    // these lanes are garnish: any failure simply means the
+    // sections below never appear. The sections are built
+    // only when the trace lands, and only while this render
+    // is still the current message (the PID lane's staleness
+    // guard, same msgKey). They slot in directly above the
+    // PID section — the fight order reads mail host, website
+    // host, registrar, then the report lanes and PID below.
+    // Deliberately NO action-history lanes/badges for the new
+    // sections: SA_LANES is pinned by the v1.0.66/67 suites,
+    // and these lanes launch the same review-first compose
+    // the mail lane does.
+    function renderDomainTraceSections() {
+      var w = a.websiteHost;
+      var pidToggle = stack.querySelector("#sf-sec-pid-toggle");
+      function placeAbovePid(sec) {
+        if (pidToggle) {
+          stack.insertBefore(sec.toggle, pidToggle);
+          stack.insertBefore(sec.panel, pidToggle);
+        }
+      }
+      // Shared Open-in-Gmail wiring for the two new email
+      // complaints: the mail lane's flow (fit, paste fallback
+      // with the full text copied, label swap) against the
+      // lane's own complaint via fitGivenComplaint. The label
+      // swap rewrites the button's own textContent — safe
+      // here precisely because these buttons carry no badge
+      // sibling (the hazard the mail lanes' .sf-btn-label
+      // spans guard against; the span count there is pinned).
+      function wireCompose(btn, complaint) {
+        btn.addEventListener("click", function () {
+          var plan = window.SpamAvenger.fitGivenComplaint(
+            accountIndex(), complaint);
+          if (!plan) return;
+          if (plan.mode === "paste") {
+            if (navigator.clipboard) {
+              navigator.clipboard.writeText(plan.complaint.body)
+                .catch(function () {});
+            }
+            var origLabel = btn.textContent;
+            btn.textContent =
+              "Copied! Paste into the email (Ctrl+V), then Send";
+            setTimeout(function () {
+              btn.textContent = origLabel;
+            }, 6000);
+          }
+          window.open(plan.url, "_blank", "noopener");
+        });
+      }
+      if (w && w.ip) {
+        var hint = w.formLane === "ovh" ? OVH_FORM_HINT
+          : (w.formLane ? HYPER_FORM_HINTS[w.formLane] : null);
+        if (w.formLane && hint) {
+          // Form-only website host: the mail lane's form-kit
+          // presentation governs — evidence box + one button
+          // that copies it and opens the host's own form. The
+          // evidence block is the lib's website-truthful one
+          // (buildHostingFormEvidence): the mail kit's slices
+          // claim the message was SENT from the report IP,
+          // which is false for a website address, so this lane
+          // carries no per-field steps.
+          var wFormSec = acc.section("sf-sec-website", "sf-btn-blue",
+            "Website host \u2014 use their form");
+          placeAbovePid(wFormSec);
+          var wfw = h("div", { "class": "sf-complaint" });
+          if (hint.fact) {
+            wfw.appendChild(h("p", { "class": "sf-note" }, hint.fact));
+          }
+          wfw.appendChild(h("p", { "class": "sf-note" },
+            "The website for " + w.domain + " \u2014 the domain " +
+            "that sent this message \u2014 is hosted by " +
+            hint.label + " at " + w.ip + ". Your report " +
+            "details are in the box below. The button copies " +
+            "them to your clipboard and opens the " +
+            hint.label + " abuse form. " +
+            (hint.pick ? hint.pick + " " : "") +
+            "On the form, paste into the details field \u2014 " +
+            "Ctrl+V, or right-click and choose Paste \u2014 " +
+            "then submit the form."));
+          wfw.appendChild(h("b", null,
+            "Form evidence \u2014 paste into the " + hint.label +
+            " abuse form"));
+          var wEta = h("textarea", { id: "sf-website-evidence" });
+          wEta.readOnly = true;
+          wEta.value =
+            window.SpamAvenger.buildHostingFormEvidence(a) || "";
+          wfw.appendChild(wEta);
+          if (hint.showLink) {
+            wfw.appendChild(h("p", { "class": "sf-fine" },
+              "Abuse form: ",
+              h("a", { href: hint.url, target: "_blank",
+                rel: "noopener" }, hint.linkText)));
+          }
+          var wFormBtn = h("button", { id: "sf-open-website-form",
+            "class": "sf-btn-blue", "type": "button" },
+            "Copy evidence & open the " + hint.label + " abuse form");
+          wFormBtn.addEventListener("click", function () {
+            var copied = false;
+            try {
+              wEta.focus();
+              wEta.select();
+              copied = document.execCommand("copy");
+            } catch (e) {}
+            if (!copied && navigator.clipboard) {
+              navigator.clipboard.writeText(wEta.value)
+                .catch(function () {});
+              copied = true;
+            }
+            var origLabel = wFormBtn.textContent;
+            wFormBtn.textContent = copied
+              ? "Copied! The form is open \u2014 paste into its details field (Ctrl+V or right-click \u2192 Paste)"
+              : "The form is open \u2014 copy the box text above and paste it in";
+            setTimeout(function () {
+              wFormBtn.textContent = origLabel;
+            }, 6000);
+            window.open(hint.url, "_blank", "noopener");
+          });
+          wfw.appendChild(
+            h("div", { "class": "sf-actions" }, wFormBtn));
+          wFormSec.panel.appendChild(wfw);
+        } else if (a.websiteComplaint) {
+          var wSec = acc.section("sf-sec-website", "sf-btn-green",
+            "Website host complaint \u2014 ready to send");
+          placeAbovePid(wSec);
+          var ww = h("div", { "class": "sf-complaint" });
+          ww.appendChild(h("p", { "class": "sf-note" },
+            "Separate from the mail host above: this is who " +
+            "hosts the sender domain's WEBSITE \u2014 another " +
+            "desk holding a piece of the same fraud " +
+            "operation."));
+          ww.appendChild(mkRow("Domain", w.domain || "unknown"));
+          ww.appendChild(mkRow("Website IP", w.ip +
+            (w.checkedDate ? " (checked " + w.checkedDate + ")" : ""),
+            true));
+          if (w.host && w.host !== "unknown") {
+            ww.appendChild(mkRow("Host", w.host));
+          }
+          if (w.org) ww.appendChild(mkRow("Owned by", w.org));
+          ww.appendChild(mkRow("Abuse contact",
+            a.websiteComplaint.to));
+          var wTa = h("textarea", { id: "sf-website-text" });
+          wTa.readOnly = true;
+          wTa.value = "To: " + a.websiteComplaint.to +
+            "\nSubject: " + a.websiteComplaint.subject +
+            "\n\n" + a.websiteComplaint.body;
+          ww.appendChild(wTa);
+          var wBtn = h("button", { id: "sf-website-compose",
+            "class": "sf-btn-green" },
+            "Open in Gmail \u2014 just click Send");
+          wireCompose(wBtn, a.websiteComplaint);
+          ww.appendChild(h("div", { "class": "sf-actions" }, wBtn));
+          wSec.panel.appendChild(ww);
+        } else {
+          var wInfoSec = acc.section("sf-sec-website", "sf-btn-blue",
+            "Website host \u2014 no published abuse contact");
+          placeAbovePid(wInfoSec);
+          var wiw = h("div", { "class": "sf-complaint" });
+          wiw.appendChild(mkRow("Domain", w.domain || "unknown"));
+          wiw.appendChild(mkRow("Website IP", w.ip, true));
+          if (w.host && w.host !== "unknown") {
+            wiw.appendChild(mkRow("Host", w.host));
+          }
+          if (w.org) wiw.appendChild(mkRow("Owned by", w.org));
+          wiw.appendChild(h("p", { "class": "sf-note" },
+            "No published abuse contact for this host, so " +
+            "there's no complaint to send them. The facts " +
+            "still stand as evidence \u2014 the report lanes " +
+            "below carry them to desks that do act."));
+          wInfoSec.panel.appendChild(wiw);
+        }
+      }
+      var ri = a.registrarInfo;
+      if (ri && (ri.registrar || ri.registered ||
+                 ri.registrarAbuse || ri.registrant)) {
+        var rSec = acc.section("sf-sec-registrar",
+          a.registrarComplaint ? "sf-btn-green" : "sf-btn-blue",
+          "Registrar report \u2014 the domain itself");
+        placeAbovePid(rSec);
+        var rw = h("div", { "class": "sf-complaint" });
+        if (ri.registrar) {
+          rw.appendChild(mkRow("Registrar", ri.registrar));
+        }
+        if (ri.registered) {
+          rw.appendChild(mkRow("Registered",
+            String(ri.registered).slice(0, 10)));
+        }
+        if (ri.freshness && ri.freshness.fresh) {
+          var phrase = ri.freshness.daysBefore === 0
+            ? "the same day this email arrived"
+            : (ri.freshness.daysBefore === 1
+              ? "1 day before this email arrived"
+              : ri.freshness.daysBefore +
+                " days before this email arrived");
+          rw.appendChild(h("p", { "class": "sf-warn" },
+            "\u26A0 Registered " + phrase + " \u2014 a classic " +
+            "fresh-domain fraud tell. Legitimate businesses " +
+            "rarely start sending mail the week they register."));
+        }
+        if (ri.registrant) {
+          var regParts = [ri.registrant.name, ri.registrant.org,
+            ri.registrant.email].filter(function (x) { return !!x; });
+          if (regParts.length) {
+            rw.appendChild(mkRow("Registrant",
+              regParts.join(", ")));
+          }
+        }
+        if (ri.registrarAbuse) {
+          rw.appendChild(mkRow("Abuse contact", ri.registrarAbuse));
+          var rCopyBtn = h("button", { "class": "sf-btn-blue",
+            "type": "button" }, "Copy the abuse address");
+          rCopyBtn.addEventListener("click", function () {
+            var done = function () {
+              var orig = rCopyBtn.textContent;
+              rCopyBtn.textContent = "Copied!";
+              setTimeout(function () {
+                rCopyBtn.textContent = orig;
+              }, 4000);
+            };
+            if (navigator.clipboard) {
+              navigator.clipboard.writeText(ri.registrarAbuse)
+                .then(done).catch(done);
+            } else { done(); }
+          });
+          rw.appendChild(
+            h("div", { "class": "sf-actions" }, rCopyBtn));
+        }
+        if (a.registrarComplaint) {
+          var rTa = h("textarea", { id: "sf-registrar-text" });
+          rTa.readOnly = true;
+          rTa.value = "To: " + a.registrarComplaint.to +
+            "\nSubject: " + a.registrarComplaint.subject +
+            "\n\n" + a.registrarComplaint.body;
+          rw.appendChild(rTa);
+          var rBtn = h("button", { id: "sf-registrar-compose",
+            "class": "sf-btn-green" },
+            "Open in Gmail \u2014 just click Send");
+          wireCompose(rBtn, a.registrarComplaint);
+          rw.appendChild(h("div", { "class": "sf-actions" }, rBtn));
+        } else if (ri.registrarAbuse) {
+          rw.appendChild(h("p", { "class": "sf-note" },
+            "No pre-written complaint for this registrar \u2014 " +
+            "the abuse address above is the desk to write to " +
+            "about the domain itself (DNS Abuse: a domain " +
+            "registered to run fraud)."));
+        }
+        rSec.panel.appendChild(rw);
+      }
+    }
+    if (window.SpamAvenger.traceSenderDomain && a.senderDomain) {
+      try {
+        window.SpamAvenger.traceSenderDomain(a).then(function () {
+          if (sfCurrentMsgKey !== msgKey) return; // stale render
+          try { renderDomainTraceSections(); } catch (e) {}
+        }, function () {});
+      } catch (e) {}
+    }
     // v1.0.38: color-code legend, right above the report buttons
     // and OUTSIDE the collapsed details block, so a first-time
     // user learns what green/blue mean before they have to pick.
