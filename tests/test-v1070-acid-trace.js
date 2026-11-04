@@ -32,8 +32,11 @@
 //    desk is suppressed (one desk, one complaint);
 //  - NO new manifest permissions: host_permissions stays 11
 //    (dns.google, rdap.org, data.iana.org were already in);
-//  - SA_LANES is untouched — the new lanes record no action
-//    history (deliberate; the pinned lane list stays as-is).
+//  - SA_LANES as built in v1.0.70 was untouched — the new
+//    lanes recorded no action history. SUPERSEDED in the
+//    v1.0.71 fix (Michael's Nov 4 live test): the registrar
+//    lane sent with no timestamp, so website/registrar joined
+//    SA_LANES — see tests/test-v1071-registrar-timestamp.js.
 //
 // The domain-RDAP fetch path exercised here is the rdap.org
 // fallback (the fixture IANA bootstrap omits the test TLD).
@@ -373,9 +376,10 @@ ok("panel: registrar complaint textarea id",
   contentSrc.indexOf("sf-registrar-text") !== -1);
 ok("panel: fresh-domain tell wording present",
   contentSrc.indexOf("fresh-domain fraud tell") !== -1);
-ok("panel: SA_LANES unchanged (no new history lanes)",
+ok("panel: SA_LANES v1.0.70 shape was the base (v1.0.71 appends " +
+  "website/registrar — pinned in the v1071 suite)",
   contentSrc.indexOf(
-    'var SA_LANES = ["complaint", "ftc", "sb", "fwd", "google", "pid"];'
+    'var SA_LANES = ["complaint", "ftc", "sb", "fwd", "google", "pid",'
   ) !== -1);
 
 // ---------- async: resolution + end-to-end trace ----------

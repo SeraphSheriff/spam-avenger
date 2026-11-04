@@ -282,9 +282,12 @@ if (H) {
     typeof H.preset("", { fwd: T0 }, "fwd") === "string");
 
   // ---------- test2: the pid lane joins the store ----------
-  ok("lanes: pid included, test1 lanes intact and in order",
-    JSON.stringify(H.LANES) === JSON.stringify(
-      ["complaint", "ftc", "sb", "fwd", "google", "pid"]),
+  ok("lanes: pid included, test1 lanes intact and in order " +
+    "(v1.0.71: website/registrar appended after pid)",
+    JSON.stringify(H.LANES.slice(0, 6)) === JSON.stringify(
+      ["complaint", "ftc", "sb", "fwd", "google", "pid"]) &&
+    JSON.stringify(H.LANES.slice(6)) === JSON.stringify(
+      ["website", "registrar"]),
     JSON.stringify(H.LANES));
   const stPid = fakeStorage();
   ok("record: pid lane accepted and stored",
@@ -635,9 +638,10 @@ ok("no history code disables a lane (no disabled=true on presets)",
     .indexOf("disabled") === -1);
 
 // ---------- test2: badge registry + application (source pins) ----------
-ok("SA_LANES in source gained pid, test1 order preserved",
+ok("SA_LANES in source gained pid, test1 order preserved " +
+  "(v1.0.71: website/registrar appended, original order intact)",
   contentSrc.indexOf('var SA_LANES = ["complaint", "ftc", "sb", ' +
-    '"fwd", "google", "pid"]') !== -1);
+    '"fwd", "google", "pid",') !== -1);
 ["ftc", "sb", "fwd", "google", "pid"].forEach(function (lane) {
   ok("badge target registered for lane: " + lane,
     contentSrc.indexOf("badgeTargets." + lane + " = { el:") !== -1);

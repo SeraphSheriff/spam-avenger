@@ -281,7 +281,8 @@
   // [sa-history-helpers-begin]
   var SA_HISTORY_KEY = "saActionHistory";
   var SA_HISTORY_MAX = 100;
-  var SA_LANES = ["complaint", "ftc", "sb", "fwd", "google", "pid"];
+  var SA_LANES = ["complaint", "ftc", "sb", "fwd", "google", "pid",
+    "website", "registrar"];
 
   // The record key for a message: the analysis Message-ID (the
   // header, from lib/analyze.js) when there is one, else the Gmail
@@ -1781,10 +1782,17 @@
     // guard, same msgKey). They slot in directly above the
     // PID section — the fight order reads mail host, website
     // host, registrar, then the report lanes and PID below.
-    // Deliberately NO action-history lanes/badges for the new
-    // sections: SA_LANES is pinned by the v1.0.66/67 suites,
-    // and these lanes launch the same review-first compose
-    // the mail lane does.
+    // v1.0.71 fix (Michael's live test, Nov 4 2026): the new
+    // sections DO get action-history lanes/badges now. He sent
+    // the registrar complaint (July Name, hzxhqz.com) and the
+    // panel showed no timestamp at all, while the Forward lane
+    // right above it carried its \u2713 badge \u2014 so he could not
+    // tell the lane had run. "website" and "registrar" joined
+    // SA_LANES, their section toggles are registered in
+    // badgeTargets below, wireCompose records the launch, and
+    // the history preset at the end of this function badges a
+    // returning panel (these sections render asynchronously,
+    // after the main render's own preset callback has fired).
     function renderDomainTraceSections() {
       var w = a.websiteHost;
       var pidToggle = stack.querySelector("#sf-sec-pid-toggle");
@@ -1802,11 +1810,21 @@
       // here precisely because these buttons carry no badge
       // sibling (the hazard the mail lanes' .sf-btn-label
       // spans guard against; the span count there is pinned).
-      function wireCompose(btn, complaint) {
+      function wireCompose(btn, complaint, lane) {
         btn.addEventListener("click", function () {
           var plan = window.SpamAvenger.fitGivenComplaint(
             accountIndex(), complaint);
           if (!plan) return;
+          // v1.0.71 fix: the compose opened \u2014 the lane was
+          // launched, same wording as every other lane
+          // ("Launched", never "Sent": the user reviews and
+          // sends in the compose themselves). Badge lives on
+          // the section toggle, not this button, so the paste
+          // label swap below cannot eat it.
+          if (lane) {
+            recordLaunched(lane);
+            applyLaunchedBadge(lane, Date.now());
+          }
           if (plan.mode === "paste") {
             if (navigator.clipboard) {
               navigator.clipboard.writeText(plan.complaint.body)
@@ -1836,6 +1854,7 @@
           // carries no per-field steps.
           var wFormSec = acc.section("sf-sec-website", "sf-btn-blue",
             "Website host \u2014 use their form");
+          badgeTargets.website = { el: wFormSec.toggle };
           placeAbovePid(wFormSec);
           var wfw = h("div", { "class": "sf-complaint" });
           if (hint.fact) {
@@ -1888,6 +1907,8 @@
             setTimeout(function () {
               wFormBtn.textContent = origLabel;
             }, 6000);
+            recordLaunched("website");
+            applyLaunchedBadge("website", Date.now());
             window.open(hint.url, "_blank", "noopener");
           });
           wfw.appendChild(
@@ -1896,6 +1917,7 @@
         } else if (a.websiteComplaint) {
           var wSec = acc.section("sf-sec-website", "sf-btn-green",
             "Website host complaint \u2014 ready to send");
+          badgeTargets.website = { el: wSec.toggle };
           placeAbovePid(wSec);
           var ww = h("div", { "class": "sf-complaint" });
           ww.appendChild(h("p", { "class": "sf-note" },
@@ -1922,7 +1944,7 @@
           var wBtn = h("button", { id: "sf-website-compose",
             "class": "sf-btn-green" },
             "Open in Gmail \u2014 just click Send");
-          wireCompose(wBtn, a.websiteComplaint);
+          wireCompose(wBtn, a.websiteComplaint, "website");
           ww.appendChild(h("div", { "class": "sf-actions" }, wBtn));
           wSec.panel.appendChild(ww);
         } else {
@@ -1950,6 +1972,7 @@
         var rSec = acc.section("sf-sec-registrar",
           a.registrarComplaint ? "sf-btn-green" : "sf-btn-blue",
           "Registrar report \u2014 the domain itself");
+        badgeTargets.registrar = { el: rSec.toggle };
         placeAbovePid(rSec);
         var rw = h("div", { "class": "sf-complaint" });
         if (ri.registrar) {
@@ -2009,7 +2032,7 @@
           var rBtn = h("button", { id: "sf-registrar-compose",
             "class": "sf-btn-green" },
             "Open in Gmail \u2014 just click Send");
-          wireCompose(rBtn, a.registrarComplaint);
+          wireCompose(rBtn, a.registrarComplaint, "registrar");
           rw.appendChild(h("div", { "class": "sf-actions" }, rBtn));
         } else if (ri.registrarAbuse) {
           rw.appendChild(h("p", { "class": "sf-note" },
@@ -2020,6 +2043,19 @@
         }
         rSec.panel.appendChild(rw);
       }
+      // v1.0.71 fix: preset the website/registrar badges from
+      // stored history. This render runs asynchronously (the
+      // domain trace is a network promise), long after the main
+      // render's preset callback, so it loads the record itself.
+      var domainHistStore = saStorageLocal();
+      saLoadLaunched(domainHistStore, msgKey, function (rec) {
+        if (!rec) return;
+        ["website", "registrar"].forEach(function (lane) {
+          if (typeof rec[lane] === "number") {
+            applyLaunchedBadge(lane, rec[lane]);
+          }
+        });
+      });
     }
     if (window.SpamAvenger.traceSenderDomain && a.senderDomain) {
       try {

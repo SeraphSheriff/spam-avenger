@@ -263,9 +263,11 @@ ok("buildComplaint: dispatch precedes the skip/abuse guards",
 ok("panel: no separate Microsoft section or lane id exists",
   contentSrc.indexOf("sf-sec-ms") === -1 &&
   contentSrc.indexOf("sf-ms-") === -1);
-ok("panel: history lanes unchanged (no new lane recorded)",
+ok("panel: history lanes carry no Microsoft lane (v1.0.71 shape: " +
+  "website/registrar appended for the domain-trace lanes)",
   contentSrc.indexOf('var SA_LANES = ["complaint", "ftc", "sb", ' +
-    '"fwd", "google", "pid"]') !== -1);
+    '"fwd", "google", "pid",') !== -1 &&
+  contentSrc.indexOf('"ms"') === -1);
 ok("panel: the Azure form kit cannot hijack the Microsoft case",
   contentSrc.indexOf("if (a.msAccountReport) {") !== -1 &&
   contentSrc.indexOf("if (a.msAccountReport) {") <
