@@ -51,14 +51,14 @@ function ok(name, cond, extra) {
   else { fail++; console.log("  FAIL " + name + (extra ? " — " + extra : "")); }
 }
 
-// ---------- manifest: this build is 1.0.70 ----------
-ok("manifest version is 1.0.70 (combined build)",
-  manifest.version === "1.0.70", "got " + manifest.version);
+// ---------- manifest: this build is 1.0.72 ----------
+ok("manifest version is 1.0.72 (combined build)",
+  manifest.version === "1.0.72", "got " + manifest.version);
 ok("permissions unchanged: storage only",
   JSON.stringify(manifest.permissions) === JSON.stringify(["storage"]));
-ok("no new host permissions",
+ok("host permissions = the v1.0.72 set of 14 (deliberate: crt.sh + site-check wildcards)",
   Array.isArray(manifest.host_permissions) &&
-  manifest.host_permissions.length === 11);
+  manifest.host_permissions.length === 14);
 ok("buildFormFieldEvidence is exported",
   typeof analyze.buildFormFieldEvidence === "function");
 
@@ -139,8 +139,12 @@ ok("field copy buttons are copy-only: the kit still has exactly one form opener"
 ok("field copies record no launch (nothing is filed until the user submits)",
   kitSeg.slice(kitSeg.indexOf("if (formLane.fields"))
     .indexOf("recordLaunched") === -1);
-ok("no new .sf-btn-label spans (v1.0.70: back to 2 — the Azure copy-details span retired)",
-  (contentSrc.match(/"class": "sf-btn-label"/g) || []).length === 2);
+ok(".sf-btn-label spans: 8 (v1.0.70: back to 2 — the Azure " +
+   "copy-details span retired; public 1.0.72: the website " +
+   "and registrar buttons gained spans under the launched-" +
+   "stamp parity fix, so their badges survive the label swaps; " +
+   "the link-host stamp fix adds its two buttons' spans)",
+  (contentSrc.match(/"class": "sf-btn-label"/g) || []).length === 8);
 
 // ---------- lib: the slices ----------
 // One spam fixture, three forms. Modeled on the real

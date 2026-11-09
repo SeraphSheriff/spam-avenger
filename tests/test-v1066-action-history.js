@@ -90,13 +90,13 @@ function ok(name, cond, extra) {
 }
 
 // ---------- manifest: version bumped, NOTHING else grew ----------
-ok("manifest version is 1.0.70", manifest.version === "1.0.70",
+ok("manifest version is 1.0.72", manifest.version === "1.0.72",
   "got " + manifest.version);
 ok("permissions unchanged: storage only",
   JSON.stringify(manifest.permissions) === JSON.stringify(["storage"]));
-ok("no new host permissions (still the 1.0.65 set)",
+ok("host permissions = the v1.0.72 set of 14 (1.0.65 set + crt.sh + site-check wildcards, deliberate)",
   Array.isArray(manifest.host_permissions) &&
-  manifest.host_permissions.length === 11);
+  manifest.host_permissions.length === 14);
 
 // ---------- extract the history helpers ----------
 const bMark = "// [sa-history-helpers-begin]";
@@ -283,11 +283,13 @@ if (H) {
 
   // ---------- test2: the pid lane joins the store ----------
   ok("lanes: pid included, test1 lanes intact and in order " +
-    "(v1.0.71: website/registrar appended after pid)",
+    "(v1.0.71: website/registrar appended after pid; public " +
+    "1.0.72: linkhost appended after registrar — the " +
+    "link-host stamp parity fix)",
     JSON.stringify(H.LANES.slice(0, 6)) === JSON.stringify(
       ["complaint", "ftc", "sb", "fwd", "google", "pid"]) &&
     JSON.stringify(H.LANES.slice(6)) === JSON.stringify(
-      ["website", "registrar"]),
+      ["website", "registrar", "linkhost"]),
     JSON.stringify(H.LANES));
   const stPid = fakeStorage();
   ok("record: pid lane accepted and stored",
@@ -730,8 +732,8 @@ ok("test5: neither complaint button's whole textContent is " +
    "written anywhere anymore",
   contentSrc.indexOf("formBtn.textContent") === -1 &&
   contentSrc.indexOf("compBtn.textContent") === -1);
-ok("test5: both complaint labels live in .sf-btn-label spans (v1.0.70: back to two — the third span carried the Azure kit's copy-details label, retired with the v1.0.69 single-block kit)",
-  (contentSrc.match(/"class": "sf-btn-label"/g) || []).length === 2 &&
+ok("test5: both complaint labels live in .sf-btn-label spans (v1.0.70: back to two — the third span carried the Azure kit's copy-details label, retired with the v1.0.69 single-block kit; public 1.0.72: four more spans — the website and registrar buttons, both shapes, carry them under the launched-stamp parity fix; the link-host stamp fix adds its two buttons' spans, eight in total)",
+  (contentSrc.match(/"class": "sf-btn-label"/g) || []).length === 8 &&
   contentSrc.indexOf("var formBtnLabel = ") !== -1 &&
   contentSrc.indexOf("var compBtnLabel = ") !== -1);
 ok("test5: the swaps write ONLY the label spans",

@@ -1,6 +1,6 @@
 # Privacy Policy — Spam Avenger for Gmail
 
-Last updated: November 3, 2026
+Last updated: November 6, 2026
 
 **Short version: this extension does not collect, store, transmit, or
 sell any of your personal data. Period.**
@@ -21,7 +21,13 @@ extension:
    address up the same way (to identify the website's hoster), and
    reads the domain's own public registration record (its registrar,
    registration date, and registrant when the record publishes one).
-5. Generates abuse-complaint drafts that you review, copy, and send
+5. Checks whether the sender's domain — and the domain of the
+   message's main link — actually has a live website, by fetching
+   its home page, and traces whoever hosts the link's page the same
+   way as the sender's. When a site's public address belongs to a
+   proxy network, it looks for the real host behind it in public DNS
+   records and public certificate-transparency records.
+6. Generates abuse-complaint drafts that you review, copy, and send
    yourself.
 
 ## Pre-filling the FTC and Google Safe Browsing report forms
@@ -36,6 +42,20 @@ you. It is never sent anywhere by the extension, it is erased as soon
 as the form is filled, and it is ignored (and deleted) if it is more
 than 30 minutes old. As always, nothing is submitted automatically —
 you review the filled form and send the report yourself.
+
+## Remembering senders you have reported
+
+So the panel can warn you when a message comes from a sender you
+have reported before, the extension keeps a short local list of
+"sightings": the sending server's IP address, the sender's domain,
+the date, the abuse desk a report went to, and which report action
+you took. Sightings live only in your browser's own local extension
+storage (`chrome.storage.local`), on your device only. They are
+never transmitted anywhere, they are kept to the newest 500 entries
+(older ones are pruned automatically), and removing the extension
+removes them. They exist for one purpose: the repeat-sender note in
+the panel and the prior-report section added to a complaint you
+choose to draft about a repeat sender.
 
 ## Data-deletion demands and "your details"
 
@@ -69,6 +89,14 @@ never about you:
   at `data.iana.org`, with `rdap.org` as the fallback directory) —
   the domain's public registration record: registrar, registration
   date, and registrant when published.
+- **Website checks** — a plain fetch of the home page of the
+  sender's domain and of the message's main link (to tell a live
+  site from a parked or dead one). The request carries no cookies
+  and no information about you; it is the same request any visitor's
+  browser would make.
+- **Certificate-transparency lookups** (`crt.sh`) — the public list
+  of hostnames that have carried certificates for a domain, used to
+  find the real host behind a proxy network.
 
 ## What we do NOT do
 
@@ -87,6 +115,11 @@ never about you:
   Gmail and read the headers of the message you choose to analyze.
 - **Host access to the RDAP and DNS endpoints above** — required for
   the IP-ownership and domain-registration lookups described above.
+- **Host access to websites generally** — required for the website
+  checks described above: the panel can only tell whether a spam or
+  phishing domain has a live site (and who hosts the page a message
+  links to) by fetching that site's home page, and the domains
+  involved are, by definition, arbitrary.
 - **Storage** — required to hold the case details locally, in your
   browser only, so the FTC and Google Safe Browsing report forms can
   be pre-filled as described above; and to keep the name, email, ZIP,

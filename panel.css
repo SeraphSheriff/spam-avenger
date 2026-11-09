@@ -101,11 +101,35 @@
   padding: 8px 10px;
   margin: 8px 0;
 }
+/* v1.0.72: the repeat-offender note sits at the very top of
+   the stack — same calm blue as a note, with a firmer left
+   edge so it reads as a heads-up, not boilerplate. */
+#spam-avenger-panel .sf-repeat-note {
+  border-left: 4px solid #1a73e8;
+  font-weight: 500;
+}
 #spam-avenger-panel .sf-warn {
   background: #fce8e6;
   border-radius: 8px;
   padding: 8px 10px;
   margin: 8px 0;
+}
+/* Public 1.0.72: the Blocked lanes group at the bottom of
+   the stack — the labeled stand-in notes of every blocked
+   lane, gathered under one quiet rule and a small bold
+   heading in the footer fine print's tone (.sf-fine gray,
+   11px), so the actionable lanes above read clean. */
+#spam-avenger-panel .sf-blocked-group { margin-top: 4px; }
+#spam-avenger-panel .sf-blocked-rule {
+  border: none;
+  border-top: 1px solid #dadce0;
+  margin: 10px 0 6px;
+}
+#spam-avenger-panel .sf-blocked-heading {
+  color: #5f6368;
+  font-size: 11px;
+  font-weight: 700;
+  margin: 0 0 2px;
 }
 #spam-avenger-panel .sf-flags ul { margin: 4px 0 4px 18px; padding: 0; }
 #spam-avenger-panel .sf-flags li { margin: 3px 0; }

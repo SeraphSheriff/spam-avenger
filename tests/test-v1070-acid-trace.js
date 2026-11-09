@@ -31,7 +31,12 @@
 //  - a website resolving to the mail lane's own IP + abuse
 //    desk is suppressed (one desk, one complaint);
 //  - NO new manifest permissions: host_permissions stays 11
-//    (dns.google, rdap.org, data.iana.org were already in);
+//    (dns.google, rdap.org, data.iana.org were already in).
+//    SUPERSEDED in v1.0.72 (Michael's Nov 6 lane gating): the
+//    live-website checks fetch arbitrary sender/link sites,
+//    so the set is now 14 (+ crt.sh and the http/https
+//    wildcards) — deliberate, and pinned at 14 below so any
+//    FURTHER creep still fails this suite;
 //  - SA_LANES as built in v1.0.70 was untouched — the new
 //    lanes recorded no action history. SUPERSEDED in the
 //    v1.0.71 fix (Michael's Nov 4 live test): the registrar
@@ -61,10 +66,10 @@ function ok(name, cond, extra) {
 }
 
 // ---------- manifest: no version bump, no new hosts ----------
-ok("manifest version stays 1.0.70", manifest.version === "1.0.70",
+ok("manifest version stays 1.0.72", manifest.version === "1.0.72",
   "got " + manifest.version);
-ok("host_permissions unchanged at 11",
-  manifest.host_permissions.length === 11,
+ok("host_permissions = the v1.0.72 set of 14",
+  manifest.host_permissions.length === 14,
   "got " + manifest.host_permissions.length);
 ok("host_permissions include rdap.org",
   manifest.host_permissions.some(function (h) {

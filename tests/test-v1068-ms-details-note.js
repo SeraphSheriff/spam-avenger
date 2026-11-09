@@ -41,13 +41,13 @@ function ok(name, cond, extra) {
 }
 
 // ---------- manifest ----------
-ok("manifest version is 1.0.70", manifest.version === "1.0.70",
+ok("manifest version is 1.0.72", manifest.version === "1.0.72",
   "got " + manifest.version);
 ok("permissions unchanged: storage only",
   JSON.stringify(manifest.permissions) === JSON.stringify(["storage"]));
-ok("no new host permissions (dns.google already there)",
+ok("host permissions = the v1.0.72 set of 14 (dns.google already there)",
   Array.isArray(manifest.host_permissions) &&
-  manifest.host_permissions.length === 11 &&
+  manifest.host_permissions.length === 14 &&
   manifest.host_permissions.indexOf("https://dns.google/*") !== -1);
 
 // ---------- fixtures (same shapes as the v1067 suite) ----------
@@ -142,9 +142,10 @@ ok("panel: non-MS abuse contact still falls back to RDAP / not published",
 ok("panel: details note comes from the lib's flipped note in the MS case",
   contentSrc.indexOf("window.SpamAvenger.msDetailsNote") !== -1 &&
   contentSrc.indexOf("detailNote ||") !== -1);
-ok("panel: the original makeup line still stands for normal senders",
+ok("panel: the spoofed line stands for normal senders " +
+   "(Michael's wording, Nov 8 2026: 'spoofed', not 'makeup')",
   contentSrc.indexOf(
-    "address is makeup. The IP is the face underneath.") !== -1);
+    "address is spoofed. The IP is the face underneath.") !== -1);
 ok("lib: flipped wording lives in msDetailsNote",
   analyzeSrc.indexOf("No makeup this time: ") !== -1 &&
   analyzeSrc.indexOf("shared mail truck") !== -1 &&

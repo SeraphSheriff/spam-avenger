@@ -443,10 +443,28 @@
     function build(extraUrls) {
       var hasUrls = !!(stash.urls && stash.urls.length);
       var L = [];
-      L.push(hasUrls
-        ? "I received a phishing/spam email containing a link to a " +
-          "phishing page."
-        : "I received a phishing/spam email.");
+      // Public 1.0.72 release (internal build .73): a
+      // sextortion stash (the panel flagged the message,
+      // Michael's Nov 8 2026 ruling — the FTC lane carries
+      // it) opens with what the message actually is, not the
+      // phishing line, and names the wallet the payment was
+      // demanded to: the wallet is the one piece of evidence
+      // an investigator can act on. The URL lines below are
+      // unchanged, and a non-sextortion stash's text is
+      // byte-identical to before.
+      if (stash.sextortion) {
+        L.push("I received a sextortion (extortion) email " +
+          "demanding payment.");
+        if (stash.wallet) {
+          L.push("Payment was demanded to this crypto " +
+            "wallet: " + stash.wallet);
+        }
+      } else {
+        L.push(hasUrls
+          ? "I received a phishing/spam email containing a link to a " +
+            "phishing page."
+          : "I received a phishing/spam email.");
+      }
       // v1.0.32: omit the URL line entirely on a 0-link stash —
       // never print "Phishing URL: undefined".
       if (hasUrls) L.push("Phishing URL: " + stash.urls[0]);
@@ -459,6 +477,21 @@
       if (stash.ip) {
         L.push("Sending IP: " + stash.ip +
           (stash.server ? " (server: " + stash.server + ")" : ""));
+      }
+      // Public 1.0.72 release (internal build .73): a
+      // sextortion narrative closes with the spoof fact
+      // when the EVIDENCE proves it — the stash's
+      // fromSpoofed is set only when another domain's
+      // server sent the message and DKIM never passed
+      // aligned for the From domain (the Nov 8 specimen:
+      // From the user's own domain, sent from an unrelated
+      // Kenyan server, DKIM missing). The sextortion flag
+      // alone is not enough, and a non-sextortion
+      // narrative never gets the line.
+      if (stash.sextortion && stash.fromSpoofed) {
+        L.push("The From address appears spoofed; the " +
+          "sending IP is not associated with the claimed " +
+          "sender's domain.");
       }
       return L.join("\n");
     }
@@ -922,6 +955,97 @@
     }, 450);
   }
 
+  /* Public 1.0.72 release (internal build .73): the FTC
+   * category auto-pick state machine — PURE, no DOM. The
+   * watcher in fillFtc feeds it one plain view per pass
+   * ({ tile: {selected} | null, otherSelected: bool }) and
+   * it answers "click" or null. It exists because the
+   * v1.0.37 one-shot click lied by omission: categoryTried
+   * latched true before the search loop even ran, as soon
+   * as the wizardStarted text gate passed — which can
+   * happen before the category tiles render — the first
+   * text match got one unverified click, and the guide
+   * claimed "I already selected it if I could" whether or
+   * not anything was selected. Michael's field report
+   * (Nov 8 2026): most of the time the tile was NOT
+   * selected and he clicked it himself. Now: retry on
+   * every pass while the category step is up, latch "done"
+   * only when a click of ours verifies as selected in the
+   * same breath (afterClick), stand down for good when a
+   * selection appears that we didn't verify (the user's
+   * own hand — never override it), and give up once the
+   * window (Michael's bound: three to five seconds) runs
+   * out, so the guide can honestly say it couldn't.
+   * guideLine() only ever states what the state proves. */
+  var CAT_PICK_WINDOW_MS = 5000;
+  // Public 1.0.72 release (internal build .73): the
+  // sextortion category config. A sextortion report is
+  // not impersonation, so its FTC tile is "Something
+  // else" (Michael approved auto-picking it Nov 8 2026,
+  // extending the verified impersonator pick). The
+  // fallback line is the plain guide line itself: if the
+  // pick never verifies inside the window, the banner
+  // falls back to guide-only and never claims a pick.
+  var SA_FTC_CAT_SOMETHING_ELSE = {
+    autoPick: "Something else",
+    pickedText: "I selected 'Something else' for you.",
+    plain: "Pick 'Something else' \u2014 this one isn't " +
+      "impersonating anybody.",
+    picked: "I selected 'Something else' for you.",
+    failed: "Pick 'Something else' \u2014 this one isn't " +
+      "impersonating anybody.",
+    titleRe: /something else/i
+  };
+  function makeCategoryAutoPick(windowMs, config) {
+    var cfg = config || {};
+    var plainLine = cfg.plain || "Pick 'An impersonator'.";
+    var pickedLine = cfg.picked || cfg.pickedText ||
+      "I selected 'An impersonator' for you.";
+    var failedLine = cfg.failed ||
+      "I tried to select 'An impersonator' for you " +
+        "and couldn't \u2014 please click it.";
+    var state = "waiting"; // waiting | trying | done | failed | user
+    var engagedAt = null;
+    return {
+      step: function (view, now) {
+        if (state === "done" || state === "failed" ||
+            state === "user") return null;
+        if (view.tile && view.tile.selected) {
+          // Selected, and not through a verified click of
+          // ours (that latches in afterClick) — the user's
+          // own hand. Stand down; never override it.
+          state = "user";
+          return null;
+        }
+        if (view.otherSelected) { state = "user"; return null; }
+        if (engagedAt === null) engagedAt = now;
+        if (now - engagedAt >= windowMs) {
+          state = "failed";
+          return null;
+        }
+        state = "trying";
+        return view.tile ? "click" : null;
+      },
+      // The caller clicks, then IMMEDIATELY re-checks the
+      // tile: a selection that verifies in the same breath
+      // is ours to claim. One that only shows up on a later
+      // pass can't be told apart from the user's own click,
+      // so step() credits it to the user instead — the
+      // guide never claims a click it can't prove.
+      afterClick: function (selectedNow) {
+        if (selectedNow && state === "trying") state = "done";
+      },
+      getState: function () { return state; },
+      guideLine: function () {
+        if (state === "done")
+          return pickedLine;
+        if (state === "failed")
+          return failedLine;
+        return plainLine;
+      }
+    };
+  }
+
   /* ---------------- FTC ReportFraud wizard ---------------- */
 
   function fillFtc(stash) {
@@ -936,7 +1060,56 @@
     Diag.set("sub1", REMINDER);
     var filled = false;
     var watchDone = false;
-    var categoryTried = false;
+    // Public 1.0.72 release (internal build .73): the
+    // category auto-pick state machine (see
+    // makeCategoryAutoPick above) replaces the v1.0.37
+    // one-shot categoryTried latch.
+    var catPick = makeCategoryAutoPick(CAT_PICK_WINDOW_MS);
+    // Public 1.0.72 release (internal build .73): the
+    // sextortion "Something else" picker — the SAME state
+    // machine, window, click+verify, and stand-down rules,
+    // aimed at the other tile (Michael approved Nov 8
+    // 2026). Its guide line is G_CAT_OTHER, refreshed from
+    // this picker after every pass exactly as G_CAT is
+    // from catPick; on failure the line falls back to the
+    // plain guide text (see SA_FTC_CAT_SOMETHING_ELSE).
+    var elsePick = makeCategoryAutoPick(CAT_PICK_WINDOW_MS,
+      SA_FTC_CAT_SOMETHING_ELSE);
+    // Public 1.0.72 release (internal build .73), tile-
+    // finder fix: the picker's terminal state gets ONE
+    // diary line per walk. Until now only actual clicks
+    // logged, so a picker that armed, found nothing it
+    // could claim, and stood down left no trace in the
+    // console — the Nov 8 2026 tile failure was invisible
+    // in the diary and took a live page capture to prove.
+    // Keyed on the picker instance: a session restart
+    // builds a fresh machine (see the rank 0/1 reset in
+    // postFillPass), which re-arms the line for the new
+    // walk.
+    var catPickLogged = null;
+    function logCatPickTerminal() {
+      if (catPickLogged === catPick) return;
+      var s = catPick.getState();
+      if (s !== "done" && s !== "failed" && s !== "user") {
+        return;
+      }
+      catPickLogged = catPick;
+      Diag.debug("FTC wizard: category auto-pick " +
+        (s === "done" ? "picked" : "stood down") +
+        " \u2014 state=" + s);
+    }
+    var elsePickLogged = null;
+    function logElsePickTerminal() {
+      if (elsePickLogged === elsePick) return;
+      var s = elsePick.getState();
+      if (s !== "done" && s !== "failed" && s !== "user") {
+        return;
+      }
+      elsePickLogged = elsePick;
+      Diag.debug("FTC wizard: category auto-pick " +
+        (s === "done" ? "picked" : "stood down") +
+        " \u2014 state=" + s);
+    }
     var startedAt = Date.now();
     var deadline = startedAt + 10 * 60 * 1000; // pre-fill hunt cap
     // v1.0.43: the watch used to END at the fill. It doesn't
@@ -961,8 +1134,32 @@
     // each line is just the plain instruction, capitalized.
     var G_HOME = "Click the big Report Now button to start " +
       "your report.";
-    var G_CAT = "Pick 'An impersonator' \u2014 I already " +
-      "selected it if I could.";
+    // Public 1.0.72 release (internal build .73): the
+    // category guide line is STATE-AWARE now — the
+    // auto-pick rewrites this var (G_CAT = catPick
+    // .guideLine()) as its state resolves, so the line
+    // only ever claims a selection the picker verified,
+    // and admits it when the retry window runs out. The
+    // old hedged line ("I already selected it if I
+    // could") is deleted: it claimed effort, proved
+    // nothing, and Michael's walks showed the tile
+    // usually unselected underneath it.
+    var G_CAT = "Pick 'An impersonator'.";
+    // Public 1.0.72 release (internal build .73): a
+    // sextortion report has no impersonator — nobody is
+    // being impersonated — so for a sextortion stash the
+    // category line points at "Something else" instead
+    // (that is the FTC tile's actual label — the form has
+    // no tile labeled "Other"; Michael's field catch,
+    // Nov 8 2026). The impersonator tile is never picked
+    // for a sextortion stash; instead elsePick auto-picks
+    // the "Something else" tile with the same verified
+    // machinery (Michael approved Nov 8 2026), and this
+    // var is refreshed from elsePick after every pass —
+    // the plain guide text below is its starting and
+    // fallback state.
+    var G_CAT_OTHER = "Pick 'Something else' \u2014 this one isn't " +
+      "impersonating anybody.";
     var G_START = "This came by email \u2014 pick Email.";
     var G_PAY = "If you didn't pay them anything, pick No. " +
       "(Only you can answer this one.)";
@@ -992,9 +1189,18 @@
     // state, applied through showPostState() — at the fill, and
     // again whenever the user is back on the comments step with
     // the text in place.
-    var FILLED_LEAD = "\u2713 I filled in the Comments box below " +
-      "for you \u2014 the phishing link plus the sender details " +
-      "from the email.";
+    // Public 1.0.72 release (internal build .73): the filled
+    // line must not claim a phishing link when the stash
+    // held zero URLs (the Nov 8 2026 sextortion walk: the
+    // banner claimed a link the message never had). With
+    // URLs the wording stands; without, it credits the
+    // sender details only.
+    var FILLED_LEAD = (stash.urls && stash.urls.length)
+      ? "\u2713 I filled in the Comments box below " +
+        "for you \u2014 the phishing link plus the sender details " +
+        "from the email."
+      : "\u2713 I filled in the Comments box below " +
+        "for you \u2014 the sender details from the email.";
     var FILLED_SUB1 = "That's the evidence the FTC needs, dug " +
       "out of the email so you don't have to hunt for it.";
     var FILLED_SUB2 = "Before you submit: make sure the Yes/No " +
@@ -1076,6 +1282,114 @@
             re.test((els[i].textContent || "").trim())) return true;
       }
       return false;
+    }
+    // Public 1.0.72 release (internal build .73): the
+    // auto-pick's eyes. tileSelected() asks whether a tile
+    // element is REALLY selected: its radio input checked —
+    // the element itself, a label's control, the label's
+    // for= target, or an input nested inside it — an
+    // aria-checked=true on it or inside it, or a selected
+    // class. (The wizard's tiles are USWDS radio tiles: the
+    // text lives on the <label>, the truth lives on its
+    // input.) scanCategoryView() folds one watcher pass
+    // into the plain view the picker consumes: the
+    // impersonator tile (matched by its title — see
+    // tileTitle below), plus whether any OTHER
+    // radio-like tile on the step is already selected —
+    // the user's own pick, which the picker stands down
+    // for and never overrides.
+    function tileSelected(el) {
+      if (!el) return false;
+      if (el.checked) return true;
+      if (el.getAttribute &&
+          el.getAttribute("aria-checked") === "true") return true;
+      var input = el.control || null;
+      if (!input && el.querySelector) {
+        input = el.querySelector(
+          "input[type='radio'], input[type='checkbox']");
+      }
+      if (!input && el.htmlFor) {
+        try { input = document.getElementById(el.htmlFor); }
+        catch (e) {}
+      }
+      if (input && input.checked) return true;
+      if (el.querySelector &&
+          el.querySelector("[aria-checked='true']")) return true;
+      var cls = (typeof el.className === "string")
+        ? el.className : "";
+      return /(^|\s)(selected|is-selected)(\s|$)/.test(cls);
+    }
+    function tileIsRadioLike(el) {
+      if (el.tagName === "INPUT" &&
+          (el.type === "radio" || el.type === "checkbox")) {
+        return true;
+      }
+      if (el.getAttribute &&
+          el.getAttribute("role") === "radio") return true;
+      var input = el.control || null;
+      if (!input && el.querySelector) {
+        input = el.querySelector(
+          "input[type='radio'], input[type='checkbox']");
+      }
+      return !!(input &&
+        (input.type === "radio" || input.type === "checkbox"));
+    }
+    // Public 1.0.72 release (internal build .73), tile-
+    // finder fix: a tile is judged by its TITLE, not its
+    // whole text. Field capture (Michael, Nov 8 2026):
+    // the wizard's "An impersonator" tile is a <label>
+    // whose full textContent runs ~76 chars — the title
+    // plus the "(ex. fake government, business, love
+    // interest, grandchild)" examples the FTC folds into
+    // the same label — so the old whole-text ≤40-char
+    // rule threw the tile out before the name test ever
+    // ran, and the clean title, sitting in a nested span
+    // the scan never visits, could not save it. The
+    // picker armed, never clicked, and honestly reported
+    // failure on the very step it exists for. The title
+    // is the element's first rendered line, cut at the
+    // "(ex." examples parenthetical; the ≤40-char guard
+    // and the impersonat test apply to the title alone,
+    // so a big container whose long text merely buries
+    // "impersonator" inside it — not as its title — is
+    // still rejected exactly as before.
+    function tileTitle(el) {
+      var tx = String(el.innerText || el.textContent || "")
+        .split("\n")[0];
+      var cut = tx.search(/\(\s*ex\./i);
+      if (cut !== -1) tx = tx.slice(0, cut);
+      return tx.replace(/\s+/g, " ").trim();
+    }
+    function scanCategoryView() {
+      var view = { tile: null, tileEl: null, otherSelected: false };
+      // The target tile follows the stash: a sextortion
+      // report aims at "Something else", everything else
+      // at the impersonator tile.
+      var targetRe = (typeof stash !== "undefined" &&
+          stash && stash.sextortion)
+        ? SA_FTC_CAT_SOMETHING_ELSE.titleRe : null;
+      var tiles = document.querySelectorAll(
+        "button, a, label, [role='radio'], [role='option']");
+      for (var i = 0; i < tiles.length; i++) {
+        var el = tiles[i];
+        if (!isVisible(el)) continue;
+        var title = tileTitle(el);
+        var isTarget = targetRe
+          ? targetRe.test(title)
+          : /impersonat/i.test(title);
+        if (title && title.length <= 40 && isTarget) {
+          if (!view.tile) {
+            view.tile = { selected: tileSelected(el) };
+            view.tileEl = el;
+          } else if (tileSelected(el)) {
+            view.tile.selected = true;
+          }
+        } else if (!view.otherSelected && tileIsRadioLike(el) &&
+            tileSelected(el)) {
+          view.otherSelected = true;
+        }
+      }
+      return view;
     }
     // Has the wizard actually started? Its telltales: the
     // "common problems" category heading, or a visible Continue
@@ -1210,7 +1524,7 @@
       } else if (/common problems/i.test(t) ||
           (wizardStarted(t) && anyVisibleText(/impersonat/i,
             "button, a, label, [role='radio'], [role='option']"))) {
-        setGuide(G_CAT);
+        setGuide(stash.sextortion ? G_CAT_OTHER : G_CAT);
       } else if ((/report to help fight fraud/i.test(t) ||
           anyVisibleText(/report now/i,
             "button, a, [role='button']")) && !progressUp()) {
@@ -1313,16 +1627,22 @@
       // on plain forward walks). No streak, no debate: drop
       // back to pre-fill guide/hunt mode on the spot. The
       // coming fill uses the in-memory savedNarrative (the
-      // stash is long cleared), categoryTried re-arms so the
-      // new walk gets the same impersonator-tile help as any
-      // fresh walk, and the hunt deadline refreshes — the
-      // ~15-minute total watch cap still bounds everything.
+      // stash is long cleared), the category auto-pick
+      // re-arms (a fresh state machine, guide line back to
+      // the plain instruction) so the new walk gets the
+      // same impersonator-tile help as any fresh walk, and
+      // the hunt deadline refreshes — the ~15-minute total
+      // watch cap still bounds everything.
       if (rank === 0 || rank === 1) {
         filled = false;
         backStreak = 0;
         lastStableState = "";
         postState = "";
-        categoryTried = false;
+        catPick = makeCategoryAutoPick(CAT_PICK_WINDOW_MS);
+        G_CAT = catPick.guideLine();
+        elsePick = makeCategoryAutoPick(CAT_PICK_WINDOW_MS,
+          SA_FTC_CAT_SOMETHING_ELSE);
+        G_CAT_OTHER = elsePick.guideLine();
         deadline = Date.now() + 10 * 60 * 1000;
         Diag.debug("FTC wizard: restart detected \u2014 back " +
           "to guide mode");
@@ -1404,25 +1724,65 @@
       updateGuide();
       if (watchDone) return; // updateGuide may have celebrated
 
-      // Best effort, once: if the first-step category tiles are up
-      // and one plainly says "impersonator", pick it — these phish
-      // almost always pretend to be a real company or agency.
-      // v1.0.37: only once the wizard's category step is actually
-      // on screen (same wizardStarted gate as the guide) — the
-      // homepage has impersonator-flavored links too, and clicking
-      // one would yank the user somewhere they didn't ask to go.
-      // categoryTried stays false until the gate passes, so the
-      // click is retried on a later pass once the wizard renders.
-      if (!categoryTried && wizardStarted(guideScanText())) {
-        categoryTried = true;
-        var tiles = document.querySelectorAll(
-          "button, a, label, [role='radio'], [role='option']");
-        for (var i = 0; i < tiles.length; i++) {
-          var tx = (tiles[i].textContent || "").trim();
-          if (tx && tx.length <= 40 && /impersonat/i.test(tx) &&
-              isVisible(tiles[i])) {
-            try { tiles[i].click(); } catch (e) {}
-            break;
+      // Best effort: if the first-step category tiles are up
+      // and one plainly says "impersonator", pick it — these
+      // phish almost always pretend to be a real company or
+      // agency.
+      // v1.0.37: only once the wizard's category step is
+      // actually on screen (the wizardStarted gate, plus the
+      // category heading or the tile itself in view) — the
+      // homepage has impersonator-flavored links too, and
+      // clicking one would yank the user somewhere they
+      // didn't ask to go.
+      // Public 1.0.72 release (internal build .73): the
+      // one-shot click is now the makeCategoryAutoPick
+      // state machine (see its note above): this block runs
+      // on EVERY pass while the category step is up, feeds
+      // the picker the pass's view, clicks when it says
+      // "click", and verifies the click in the same breath
+      // via afterClick — retries, a ~5-second bound, a
+      // stand-down for the user's own picks, and a guide
+      // line (G_CAT, refreshed from the picker below) that
+      // only states what the picker proved. Never for a
+      // sextortion stash — nobody is being impersonated;
+      // its category is "Something else" (see G_CAT_OTHER
+      // above).
+      if (!stash.sextortion) {
+        var catText = guideScanText();
+        if (wizardStarted(catText)) {
+          var catView = scanCategoryView();
+          if (CATEGORY_RE.test(catText) || catView.tile) {
+            var catAction = catPick.step(catView, Date.now());
+            if (catAction === "click" && catView.tileEl) {
+              try { catView.tileEl.click(); } catch (e) {}
+              catPick.afterClick(tileSelected(catView.tileEl));
+              Diag.debug("FTC wizard: category auto-pick " +
+                "clicked; state=" + catPick.getState());
+            }
+            logCatPickTerminal();
+            G_CAT = catPick.guideLine();
+          }
+        }
+      } else {
+        // Sextortion: the same verified pick, aimed at
+        // the "Something else" tile (see elsePick above).
+        // G_CAT_OTHER follows the picker after every
+        // pass, so the guide claims the pick only once
+        // a click of ours verifies, and falls back to
+        // the plain guide line if the window runs out.
+        var elseText = guideScanText();
+        if (wizardStarted(elseText)) {
+          var elseView = scanCategoryView();
+          if (CATEGORY_RE.test(elseText) || elseView.tile) {
+            var elseAction = elsePick.step(elseView, Date.now());
+            if (elseAction === "click" && elseView.tileEl) {
+              try { elseView.tileEl.click(); } catch (e) {}
+              elsePick.afterClick(tileSelected(elseView.tileEl));
+              Diag.debug("FTC wizard: category auto-pick " +
+                "clicked; state=" + elsePick.getState());
+            }
+            logElsePickTerminal();
+            G_CAT_OTHER = elsePick.guideLine();
           }
         }
       }

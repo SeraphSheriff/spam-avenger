@@ -57,10 +57,22 @@
       // buildFormFieldEvidence builds the slices). The form's
       // name/email boxes are the reporter's own — steps never
       // cover identity fields, only evidence fields.
+      // Public 1.0.72: the intro closes with Michael's
+      // past-details line (his call, Nov 8 2026) — Google
+      // Support's form offers details from the reporter's
+      // earlier cases ("Use past details", on the left of
+      // the form), and Joe should hear up front that the
+      // memory is Google's, not the addon's, before it
+      // startles him. Google's kit only: the panel is a
+      // Google Support feature.
       fieldsIntro: "The form's first boxes are your name and " +
         "email address \u2014 those are yours to fill in, and " +
         "Spam Avenger never prepares them. The steps below " +
-        "cover the form's evidence fields, one box at a time.",
+        "cover the form's evidence fields, one box at a time. " +
+        "Google may offer details from your earlier reports " +
+        "on the left side of this form. That's Google " +
+        "remembering your past cases, not Spam Avenger " +
+        "\u2014 use them or ignore them.",
       fields: [
         { box: "Abuse date",
           help: "The day the message arrived, in the date " +
@@ -256,14 +268,165 @@
     return m ? m[1] : "0";
   }
 
+  // Public 1.0.72 release (internal build .73): the
+  // signed-in account's own email address, read off the
+  // Gmail page for the send-as hint (lib sendAsHintFor).
+  // The header's account control carries it in its
+  // aria-label — "Google Account: <name> (<email>)" — so
+  // only elements whose label OPENS with "Google Account"
+  // are trusted, and the address must extract cleanly.
+  // Anything else (a layout that hides it, a label without
+  // an address) returns "" and the lib falls back to its
+  // custom-domain rule: the hint then fires only for a
+  // non-Gmail recipient and never guesses at a Gmail one.
+  function signedInAccountEmail() {
+    try {
+      var els = document.querySelectorAll(
+        '[aria-label^="Google Account"]');
+      for (var i = 0; i < els.length; i++) {
+        var label = els[i].getAttribute("aria-label") || "";
+        var m = label.match(/\(([^()]*@[^()]*)\)/) ||
+          label.match(/([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})/);
+        if (m) return m[1];
+      }
+    } catch (e) {}
+    return "";
+  }
+
+  // The account holder's display name, read off the same
+  // control ("Google Account: <name> (<email>)" in its
+  // aria-label, or its title when the label is bare). The
+  // own-forward catch corroborates a send-as forward by
+  // the sender's display name matching the holder's. No
+  // readable name returns "" and that corroborator simply
+  // goes absent — never an error.
+  function signedInAccountName() {
+    try {
+      var els = document.querySelectorAll(
+        '[aria-label^="Google Account"]');
+      for (var i = 0; i < els.length; i++) {
+        var texts = [els[i].getAttribute("aria-label") || "",
+          els[i].getAttribute("title") || ""];
+        for (var j = 0; j < texts.length; j++) {
+          var m = texts[j].match(
+            /^Google Account:\s*(.+?)\s*\([^()]*@[^()]*\)/);
+          if (m && m[1]) return m[1].trim();
+        }
+      }
+    } catch (e) {}
+    return "";
+  }
+
   function messageOpen() {
     // A message/thread view has a legacy message id in the DOM.
     return !!document.querySelector("[data-legacy-message-id]");
   }
 
+  // Public 1.0.72 release (internal build .73): the
+  // own-forward catch (queued-own-forward-catch.md) — page
+  // signals for one message element: its visible sender
+  // (the name span's email attribute, or the address shown
+  // beside it), the sender's display name (the same span's
+  // name attribute, or its text), the recipients (their
+  // email attributes, on the header's .g2 chips and any
+  // other addressed node in the header block, the sender
+  // itself excluded), and whether its body carries
+  // Gmail's "Forwarded message" block. A collapsed message
+  // renders none of these, so its signals come back empty
+  // and every decision built on them degrades to the old
+  // behavior. Any signal that cannot be read is simply
+  // absent — never an error.
+  function pageMessageSignals(el) {
+    var sig = { senderEmail: "", senderName: "",
+      recipientEmails: [], bodyText: "" };
+    if (!el) return sig;
+    try {
+      var nameEl = el.querySelector(".gD");
+      var em = nameEl ? nameEl.getAttribute("email") : null;
+      if (em) sig.senderEmail = em;
+      if (nameEl) {
+        var nm = nameEl.getAttribute("name") ||
+          (nameEl.textContent || "");
+        if (nm && nm.trim()) sig.senderName = nm.trim();
+      }
+      if (!sig.senderEmail) {
+        var goEl = el.querySelector(".go");
+        var m = goEl && (goEl.textContent || "")
+          .match(/([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})/);
+        if (m) sig.senderEmail = m[1];
+      }
+      var seen = {};
+      function addRcpt(node) {
+        var a = node && node.getAttribute &&
+          node.getAttribute("email");
+        if (a && !seen[a]) {
+          seen[a] = true;
+          sig.recipientEmails.push(a);
+        }
+      }
+      var rEls = el.querySelectorAll(".g2[email]");
+      for (var i = 0; i < rEls.length; i++) addRcpt(rEls[i]);
+      var hb = el.querySelector(".hb");
+      if (hb) {
+        var hEls = hb.querySelectorAll("[email]");
+        for (var j = 0; j < hEls.length; j++) {
+          if (hEls[j] !== nameEl) addRcpt(hEls[j]);
+        }
+      }
+      var bodyEl = el.querySelector(".a3s");
+      sig.bodyText = bodyEl ? (bodyEl.textContent || "") : "";
+    } catch (e) {}
+    return sig;
+  }
+
+  function messageElById(mid) {
+    var els = document.querySelectorAll("[data-legacy-message-id]");
+    for (var i = 0; i < els.length; i++) {
+      if (els[i].getAttribute("data-legacy-message-id") === mid) {
+        return els[i];
+      }
+    }
+    return null;
+  }
+
+  // The lib detector's verdict for one message element:
+  // its own signals plus the thread subject and the
+  // signed-in account's address and holder name.
+  function ownForwardOnPage(el) {
+    var SA = window.SpamAvenger;
+    if (!el || !SA || !SA.ownForwardVerdict) return false;
+    var sig = pageMessageSignals(el);
+    var subjEl = document.querySelector("h2.hP");
+    return SA.ownForwardVerdict({
+      subject: subjEl ? (subjEl.textContent || "") : "",
+      senderEmail: sig.senderEmail,
+      senderName: sig.senderName,
+      bodyText: sig.bodyText,
+      recipientEmails: sig.recipientEmails,
+      accountEmail: signedInAccountEmail(),
+      accountName: signedInAccountName()
+    });
+  }
+
   function currentMessageId() {
-    var el = document.querySelector("[data-legacy-message-id]");
-    return el ? el.getAttribute("data-legacy-message-id") : null;
+    var els = document.querySelectorAll("[data-legacy-message-id]");
+    if (!els.length) return null;
+    // Public 1.0.72 release (internal build .73): in a
+    // mixed thread (the Oct 28 shape — the user's own
+    // APWG/CISA forward sitting above the original spam),
+    // anchor on the first message that is NOT the user's
+    // own forward when the top one is, so the panel traces
+    // the original instead of failing on the forward. When
+    // nothing can be told apart, the first message anchors,
+    // exactly as before.
+    if (els.length > 1 && ownForwardOnPage(els[0])) {
+      for (var i = 1; i < els.length; i++) {
+        if (!ownForwardOnPage(els[i])) {
+          return els[i].getAttribute("data-legacy-message-id");
+        }
+      }
+    }
+    return els[0].getAttribute("data-legacy-message-id");
   }
 
   // v1.0.66: per-message action history (Michael's ask, 2026-10-31).
@@ -282,7 +445,7 @@
   var SA_HISTORY_KEY = "saActionHistory";
   var SA_HISTORY_MAX = 100;
   var SA_LANES = ["complaint", "ftc", "sb", "fwd", "google", "pid",
-    "website", "registrar"];
+    "website", "registrar", "linkhost"];
 
   // The record key for a message: the analysis Message-ID (the
   // header, from lib/analyze.js) when there is one, else the Gmail
@@ -504,6 +667,237 @@
       if (!key) return;
       saRecordLaunched(saStorageLocal(), key, lane, Date.now());
     } catch (e) {}
+    saRecordSighting(lane);
+  }
+
+  // v1.0.72: repeat-offender memory — sightings. Where the
+  // action history above is keyed by MESSAGE (what did I do
+  // about this email), sightings are keyed by SENDER (what
+  // have I reported about this IP / domain, across every
+  // message): origin IP, From domain, date, the desk the lane
+  // aimed at, and the action. They live in the extension's own
+  // chrome.storage.local under one key — never cookies, never
+  // storage.sync, nothing leaves the machine — pruned to the
+  // newest 500 by lib pruneSightings. A sighting is written
+  // when a report lane LAUNCHES (recordLaunched above is the
+  // one choke point every lane passes through) and once per
+  // analysis with action "analyzed" (which the repeat note
+  // never counts — opening a panel is not a report). If the
+  // store is wiped (uninstall, a manual data clear), the
+  // history simply resets and nothing else breaks.
+  var SA_SIGHTINGS_KEY = "saSightings";
+
+  // The analysis the panel is currently showing, captured at
+  // render time — sightings and gating read the sender's IP /
+  // domain from it, the same way lane machinery reads the
+  // message key from sfCurrentMsgKey.
+  var sfCurrentAnalysis = null;
+
+  function saDeskFor(lane, a) {
+    if (!a) return "";
+    switch (lane) {
+      case "complaint":
+        return a.complaint ? String(a.complaint.to || "") : "";
+      case "website":
+        return a.websiteComplaint
+          ? String(a.websiteComplaint.to || "")
+          : (a.websiteHost ? String(a.websiteHost.org || "") : "");
+      case "registrar":
+        return a.registrarInfo
+          ? String(a.registrarInfo.registrarAbuse || "") : "";
+      case "linkhost":
+        return a.linkComplaint
+          ? String(a.linkComplaint.to || "")
+          : (a.linkHost ? String(a.linkHost.org || "") : "");
+      case "ftc": return "ReportFraud.ftc.gov (FTC)";
+      case "sb": return "Google Safe Browsing";
+      case "fwd": return "reportphishing@apwg.org + contact@cisa.dhs.gov";
+      case "google": return "Google (Report phishing)";
+      case "pid": return "the company (data-deletion demand)";
+      default: return "";
+    }
+  }
+
+  // Fire-and-forget sighting write. Every failure is
+  // swallowed: repeat memory must never break or stall a lane.
+  function saWriteSighting(action, desk) {
+    try {
+      var a = sfCurrentAnalysis;
+      var store = saStorageLocal();
+      if (!a || !store) return;
+      var SA = window.SpamAvenger;
+      var sighting = {
+        ip: a.ip || "",
+        domain: String(a.senderDomain || "").toLowerCase(),
+        ts: Date.now(),
+        desk: desk || "",
+        action: action || ""
+      };
+      store.get(SA_SIGHTINGS_KEY, function (res) {
+        try {
+          var list = (res && Array.isArray(res[SA_SIGHTINGS_KEY]))
+            ? res[SA_SIGHTINGS_KEY] : [];
+          list.push(sighting);
+          var payload = {};
+          payload[SA_SIGHTINGS_KEY] = (SA && SA.pruneSightings)
+            ? SA.pruneSightings(list) : list.slice(-500);
+          store.set(payload, function () {
+            try {
+              if (typeof chrome !== "undefined" && chrome.runtime &&
+                  chrome.runtime.lastError) { /* swallowed */ }
+            } catch (e) {}
+          });
+        } catch (e) {}
+      });
+    } catch (e) {}
+  }
+
+  function saRecordSighting(lane) {
+    var a = sfCurrentAnalysis;
+    saWriteSighting(lane, a ? saDeskFor(lane, a) : "");
+  }
+
+  // Loads the pruned sighting list (or []) and hands it to cb.
+  // Any failure reports [] — the panel renders without the
+  // repeat note, exactly as before v1.0.72.
+  function saLoadSightings(cb) {
+    function done(list) { try { cb(list || []); } catch (e) {} }
+    var store = saStorageLocal();
+    if (!store || typeof cb !== "function") { done([]); return; }
+    try {
+      store.get(SA_SIGHTINGS_KEY, function (res) {
+        var list = (res && Array.isArray(res[SA_SIGHTINGS_KEY]))
+          ? res[SA_SIGHTINGS_KEY] : [];
+        var SA = window.SpamAvenger;
+        done((SA && SA.pruneSightings)
+          ? SA.pruneSightings(list) : list);
+      });
+    } catch (e) {
+      done([]);
+    }
+  }
+
+  // --- v1.0.72: background-worker messaging + site probing ---
+  // The background worker (background.js) is a thin network
+  // proxy: it fetches pages, DNS answers, and crt.sh lists the
+  // content script cannot read itself. Every call resolves
+  // null on ANY failure (no worker, timeout, bad reply) and
+  // callers treat null as "no information" — the panel then
+  // behaves exactly as it did before v1.0.72.
+  function saBg(msg, timeoutMs) {
+    return new Promise(function (resolve) {
+      var done = false;
+      var timer = setTimeout(function () {
+        if (!done) { done = true; resolve(null); }
+      }, timeoutMs || 12000);
+      function finish(v) {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        resolve(v == null ? null : v);
+      }
+      try {
+        if (typeof chrome === "undefined" || !chrome.runtime ||
+            !chrome.runtime.sendMessage) {
+          finish(null);
+          return;
+        }
+        msg.sa = 1;
+        chrome.runtime.sendMessage(msg, function (resp) {
+          try {
+            if (chrome.runtime.lastError) { finish(null); return; }
+          } catch (e) {}
+          finish(resp);
+        });
+      } catch (e) {
+        finish(null);
+      }
+    });
+  }
+
+  function saProbeSiteHost(host) {
+    return saBg({ kind: "probe", host: host }, 15000);
+  }
+
+  // One DoH answer list via the worker, with lib
+  // dnsAnswerList's semantics: [] for NXDOMAIN or an
+  // answered-empty result, null on any error or uncertainty.
+  function saDohAnswers(name, type) {
+    return saBg({ kind: "doh", name: name, type: type }, 8000)
+      .then(function (d) {
+        if (!d || typeof d.Status !== "number") return null;
+        if (d.Status === 3) return [];
+        if (d.Status !== 0) return null;
+        return Array.isArray(d.Answer) ? d.Answer : [];
+      }).catch(function () { return null; });
+  }
+
+  // Origin discovery: when a website's public address belongs
+  // to a front-door proxy network, hunt the REAL host through
+  // the leaks such setups leave — subdomains that bypass the
+  // front door (the classic grey-cloud set, plus every name
+  // Certificate Transparency has ever seen for the domain),
+  // the domain's own MX targets, and SPF ip4 mechanisms.
+  // Resolves the origin IP, or null when no candidate is a
+  // real non-front-door host (genuinely hidden from outside).
+  function saDiscoverOrigin(domain) {
+    var SA = window.SpamAvenger;
+    if (!SA || !SA.websiteIpFor || !SA.pickOriginIp) {
+      return Promise.resolve(null);
+    }
+    var root = String(domain || "").toLowerCase().replace(/\.$/, "");
+    var D = (typeof window !== "undefined") ? window.SpamDemand : null;
+    if (D && D.registrableDomain) {
+      root = D.registrableDomain(root) || root;
+    }
+    if (!root || root.indexOf(".") === -1) {
+      return Promise.resolve(null);
+    }
+    var names = ["mail", "cpanel", "webmail", "ftp", "direct",
+      "dev", "origin", "panel", "server", "host"].map(function (p) {
+        return p + "." + root;
+      });
+    var ips = [];
+    function collect(ip) { if (ip) ips.push(ip); }
+    return saBg({ kind: "crtsh", domain: root }, 12000)
+      .then(function (subs) {
+        if (Array.isArray(subs)) {
+          subs.forEach(function (s) {
+            if (names.indexOf(s) === -1) names.push(s);
+          });
+        }
+        names = names.slice(0, 30);
+        var jobs = names.map(function (n) {
+          return SA.websiteIpFor(n).then(collect)
+            .catch(function () {});
+        });
+        jobs.push(saDohAnswers(root, "MX").then(function (ans) {
+          if (!ans) return null;
+          var hosts = [];
+          ans.forEach(function (r) {
+            if (r.type === 15 && r.data) {
+              hosts.push(String(r.data).trim().split(/\s+/).pop()
+                .replace(/\.$/, "").toLowerCase());
+            }
+          });
+          return Promise.all(hosts.slice(0, 4).map(function (hn) {
+            return SA.websiteIpFor(hn).then(collect)
+              .catch(function () {});
+          }));
+        }).catch(function () {}));
+        jobs.push(saDohAnswers(root, "TXT").then(function (ans) {
+          if (!ans) return;
+          ans.forEach(function (r) {
+            if (r.type !== 16 || !r.data) return;
+            var txt = String(r.data).replace(/"/g, "");
+            var m, re = /ip4:\s*(\d{1,3}(?:\.\d{1,3}){3})/g;
+            while ((m = re.exec(txt))) collect(m[1]);
+          });
+        }).catch(function () {}));
+        return Promise.all(jobs);
+      }).then(function () {
+        return SA.pickOriginIp(ips);
+      }).catch(function () { return null; });
   }
 
   // v1.0.63: the ik text scans, hoisted out of ikParam so the async
@@ -1270,11 +1664,60 @@
       "class": "sf-details-toggle", "type": "button",
       "aria-expanded": "false"
     }, "Show details \u25B8");
+    // Public 1.0.72 release (internal build .73), Michael's
+    // call Nov 8 2026: Show details opens with ALL the facts
+    // or not at all. The header rows above are in hand now,
+    // but the website / link host rows only exist once the
+    // domain trace at the bottom of this render settles — so
+    // a click that lands while the trace is still running
+    // waits on this gate (loading label, button disabled so
+    // extra clicks are ignored) and opens complete the moment
+    // the trace chain settles. A failed lookup settles the
+    // gate too: the details open with the missing fact
+    // reading unknown / not published, never half-finished.
+    var detailsTraceSettled = false;
+    var detailsOpenWaiters = [];
+    function settleDetailsTrace() {
+      if (detailsTraceSettled) return;
+      detailsTraceSettled = true;
+      var ws = detailsOpenWaiters;
+      detailsOpenWaiters = [];
+      ws.forEach(function (fn) { try { fn(); } catch (e) {} });
+    }
+    function openDetails() {
+      details.style.display = "";
+      toggle.textContent = "Hide details \u25BE";
+      toggle.setAttribute("aria-expanded", "true");
+      // The details block sits at the TOP of the scrolling
+      // body, but the toggle is pinned and gets clicked from
+      // wherever the user has scrolled to — usually the
+      // bottom, after working the lanes. Without this, the
+      // details open out of view and the click looks like it
+      // did nothing (Michael's field find, Nov 8 2026).
+      // Opening the details takes the user to them.
+      try { body.scrollTop = 0; } catch (e) {}
+    }
+    function closeDetails() {
+      details.style.display = "none";
+      toggle.textContent = "Show details \u25B8";
+      toggle.setAttribute("aria-expanded", "false");
+    }
     toggle.addEventListener("click", function () {
-      var open = details.style.display !== "none";
-      details.style.display = open ? "none" : "";
-      toggle.textContent = open ? "Show details \u25B8" : "Hide details \u25BE";
-      toggle.setAttribute("aria-expanded", open ? "false" : "true");
+      if (details.style.display !== "none") {
+        closeDetails();
+        return;
+      }
+      if (detailsTraceSettled) { openDetails(); return; }
+      toggle.disabled = true;
+      toggle.textContent = "Loading details\u2026";
+      detailsOpenWaiters.push(function () {
+        toggle.disabled = false;
+        // The panel may have moved on to another message
+        // while the trace ran; never pop a stale render's
+        // details open.
+        if (sfCurrentMsgKey === msgKey) openDetails();
+        else closeDetails();
+      });
     });
     // v1.0.46: the toggle is PINNED in its own bar between the
     // header and the scrolling .sf-body, not inside the body.
@@ -1314,11 +1757,25 @@
       details.appendChild(mkRow("Abuse contact",
         a.msAccountReport ? "phish@office365.microsoft.com"
                           : (a.abuse || "not published")));
+      // v1.0.72: the authentication results as ONE statement
+      // (lib authSummaryLine) — Michael's wording: the correct
+      // technical terms in a plain sentence ("Missing standard
+      // SPF, DKIM, and DMARC authentication"), with the term
+      // list adapted to whichever mechanisms are actually
+      // missing. Shown only when something IS missing; the
+      // per-mechanism verdicts ride in the complaint evidence
+      // as before.
+      var authLine = window.SpamAvenger.authSummaryLine
+        ? window.SpamAvenger.authSummaryLine(a.authResults)
+        : null;
+      if (authLine) {
+        details.appendChild(mkRow("Authentication", authLine));
+      }
       var detailNote = a.msAccountReport && window.SpamAvenger.msDetailsNote
         ? window.SpamAvenger.msDetailsNote(a) : null;
       details.appendChild(h("p", { "class": "sf-note" },
         detailNote ||
-        'The "From" address is makeup. The IP is the face underneath.'));
+        'The "From" address is spoofed. The IP is the face underneath.'));
     }
     if (a.flags && a.flags.length) {
       var fw = h("div", { "class": "sf-flags" }, h("b", null, "Red flags"));
@@ -1326,6 +1783,28 @@
       a.flags.forEach(function (f) { ul.appendChild(h("li", null, f)); });
       fw.appendChild(ul);
       details.appendChild(fw);
+    }
+    // Public 1.0.72 release (internal build .73): the
+    // sextortion callout (lib detectSextortion flagged the
+    // body in analyze) — the one thing a frightened recipient
+    // needs to hear, in plain words: it is a mass-mailed
+    // ransom bluff, and paying is the only way it works.
+    // PLACEMENT CORRECTED Nov 8 2026 (Michael's field note):
+    // the callout does NOT live in Show details — a
+    // frightened user never expands the toggle, and calming
+    // them is the panel's first job. It renders UP FRONT on
+    // the body itself, above the legend and every lane, as
+    // a standing sf-warn banner (the pink warning family,
+    // like the no-contact note in the stack). One home
+    // only. The report lanes below are untouched (the FTC
+    // lane carries the message — the classifier never sees
+    // this flag, so no forward is offered for it).
+    if (a.sextortion && a.sextortion.flagged) {
+      body.appendChild(h("p", { "class": "sf-warn" },
+        "This looks like sextortion: a ransom bluff sent to " +
+        "thousands of people. The sender almost certainly " +
+        "has no video and no access to your device. " +
+        "Don't pay."));
     }
     // v1.0.48: which button colors this render actually puts on
     // screen — the legend below is built from these flags, so it
@@ -1337,6 +1816,63 @@
     // appended to the stack directly, never inside a section.
     var stack = h("div", { "class": "sf-stack", "id": "sf-stack" });
     body.appendChild(stack);
+    // Public 1.0.72 release (internal build .73): notes that
+    // stand in for a BLOCKED lane are COLLECTED here and shown
+    // as one group at the bottom of the stack
+    // (queued-blocked-lanes-group.md, Michael's direction
+    // Nov 8 2026). In place, an explanation of absence sat
+    // mid-stack interrupting the lanes the user can actually
+    // run — his field catch: the spoof suppression note
+    // rendered between the Forward row and the Link host
+    // lane. Now the actionable lanes read clean top to
+    // bottom, and every blocked lane's labeled note waits
+    // together under a "Blocked lanes" heading, in the order
+    // the lanes would have appeared. Collected: every
+    // placeGateNote output and the mail lane's two labeled
+    // sf-warn stand-ins. NOT collected: the sextortion
+    // banner (panel top by design), red-flag callouts,
+    // send-as hints, status lines, the repeat-offender
+    // note — those belong where they already are.
+    var blockedNotes = [];
+    var blockedGroupEl = null;
+    var blockedGroupLive = false;
+    function renderBlockedGroup() {
+      if (!blockedNotes.length) {
+        if (blockedGroupEl) {
+          blockedGroupEl.remove();
+          blockedGroupEl = null;
+        }
+        return;
+      }
+      if (!blockedGroupEl) {
+        blockedGroupEl = h("div", { "class": "sf-blocked-group",
+          "id": "sf-blocked-group" });
+      }
+      clearEl(blockedGroupEl);
+      blockedGroupEl.appendChild(
+        h("hr", { "class": "sf-blocked-rule" }));
+      blockedGroupEl.appendChild(
+        h("p", { "class": "sf-blocked-heading" }, "Blocked lanes"));
+      blockedNotes.forEach(function (n) {
+        blockedGroupEl.appendChild(n);
+      });
+      // (Re)appended LAST in the stack: after the PID
+      // section, before the body's "Nothing is sent
+      // automatically" footer — the footer is a body child,
+      // so end-of-stack is exactly that seam. Re-appending
+      // on each arrival keeps the group last while the
+      // async domain sections slot in above the PID toggle.
+      stack.appendChild(blockedGroupEl);
+    }
+    function addBlockedNote(noteEl) {
+      blockedNotes.push(noteEl);
+      // Mid-render arrivals only collect: materializing now
+      // would strand the group under the lanes the rest of
+      // this synchronous render still appends. The call at
+      // the end of renderResult flips the group live; later
+      // (async) arrivals render into it immediately.
+      if (blockedGroupLive) renderBlockedGroup();
+    }
     var acc = makeAccordion(stack);
     // The Gmail-native report button is built inside the
     // big-provider branch below, but its section sits fifth in
@@ -1349,6 +1885,80 @@
     // the bottom of the render fills them in).
     var msgKey = saHistoryKey(a, currentMessageId());
     sfCurrentMsgKey = msgKey;
+    // v1.0.72: sightings + gating read the current analysis
+    // from here (lane launches happen long after this render
+    // returns). The analysis itself leaves an "analyzed"
+    // sighting — never counted by the repeat note, which is
+    // about REPORTS.
+    sfCurrentAnalysis = a;
+    saWriteSighting("analyzed", "");
+    // Public 1.0.72 release (internal build .73): the
+    // send-as hint (queued-send-as-hint.md, Michael's call
+    // Nov 8 2026). When the address this spam was sent to
+    // differs from the signed-in account's own address,
+    // every lane that opens a Gmail compose carries one
+    // small line naming the address to send as — a fresh
+    // compose defaults to the account's default identity,
+    // and a complaint should leave from the address that
+    // received the spam. The comparison and the fallback
+    // (account address unreadable -> custom-domain
+    // recipients only) are the lib's sendAsHintFor, fed the
+    // address read off this page; the panel never touches
+    // the compose's From itself. sendAsHintEl() returns a
+    // fresh element per lane (an element can only hang in
+    // one place), or null when no hint fires.
+    var sendAsAddr = window.SpamAvenger.sendAsHintFor
+      ? window.SpamAvenger.sendAsHintFor(a.recipient,
+          signedInAccountEmail())
+      : null;
+    function sendAsHintEl(what) {
+      if (!sendAsAddr) return null;
+      return h("p", { "class": "sf-fine sf-sendas-hint" },
+        window.SpamAvenger.sendAsHintText(sendAsAddr, what));
+    }
+    // v1.0.72: repeat-offender note. Prior REPORTS of this
+    // sender (same origin IP first, From domain as fallback —
+    // lib matchReports) put an encouragement line at the top
+    // of the stack and a prior-report section into the drafted
+    // complaints (a.priorReports, read by the lib builders).
+    // The mail complaint is already built by investigate(), so
+    // when priors exist it is rebuilt here and the textarea
+    // re-filled; the website / registrar / link complaints are
+    // built later in the trace, after this has landed, and
+    // pick the section up on their own. Async and best-effort:
+    // no priors (or no storage) leaves the panel exactly as it
+    // rendered. The wording is Michael's: it leads with "Your
+    // last report of this sender was on <date>." and scales
+    // with the count — never "still sending".
+    saLoadSightings(function (list) {
+      var SA = window.SpamAvenger;
+      if (!SA || !SA.matchReports || sfCurrentMsgKey !== msgKey) {
+        return;
+      }
+      var m = SA.matchReports(list, a.ip, a.senderDomain);
+      if (!m || !m.count) return;
+      a.priorReports = m;
+      if (a.complaint) {
+        var nc = SA.buildComplaint(a);
+        if (nc) {
+          a.complaint = nc;
+          var taEl = document.getElementById("sf-complaint-text");
+          if (taEl) {
+            taEl.value = "To: " + nc.to + "\nSubject: " +
+              nc.subject + "\n\n" + nc.body;
+          }
+          // The rebuilt complaint can flip the mail lane's
+          // fit to paste mode — keep its warning truthful.
+          refreshMailPasteWarn();
+        }
+      }
+      var note = SA.repeatPanelNote ? SA.repeatPanelNote(m) : null;
+      if (note) {
+        stack.insertBefore(
+          h("p", { "class": "sf-note sf-repeat-note" }, note),
+          stack.firstChild);
+      }
+    });
     var complaintStatusEl = null, googleStatusEl = null;
     // v1.0.66-test2: badge targets for this render — each lane
     // registers the element of its OUTER, always-visible control
@@ -1388,7 +1998,46 @@
     // render, before the history-load callback fires, so the
     // callback presets both from the one stored timestamp; the
     // in-session click applies one shared `now` to both.
+    // Public 1.0.72 release (internal build .73): website and
+    // registrar join the two-target shape — Michael's field
+    // catch on the vitluma.fun panel (Nov 8 2026): the
+    // registrar section toggle showed "✓ 6:52 PM" while the
+    // "Open in Gmail" button inside the section showed
+    // nothing, so the button he actually clicked looked
+    // unlaunched. Their entries are { els: [toggle, button] }
+    // like complaint's, in both their shapes (email lane and
+    // form kit), and their buttons carry .sf-btn-label spans
+    // so the paste/copy label swaps can't eat the badge. The
+    // trace render's own async preset (below) and the history
+    // callback both walk the els array, so a return visit
+    // stamps both controls from the stored timestamp. The
+    // link host lane joins the same two-target shape later
+    // the same evening, on its own field catch (its toggle
+    // and its "Open in Gmail" button both stayed unstamped
+    // after a launch — it was never in SA_LANES at all, and
+    // recorded only a sighting).
     var badgeTargets = {};
+    // Public 1.0.72 release (internal build .73): the mail
+    // lane's paste-mode warning element (queued-registrar-
+    // paste-mode.md item 2), refreshed by refreshMailPasteWarn
+    // below — once when the section builds, and again from
+    // the sightings callback above whenever a prior-report
+    // rebuild replaces a.complaint (a longer rebuilt body can
+    // flip the fit to paste mode after the section rendered).
+    var mailPasteWarnEl = null;
+    function refreshMailPasteWarn() {
+      if (!mailPasteWarnEl) return;
+      var plan = null;
+      try {
+        plan = window.SpamAvenger.fitForCompose(accountIndex(), a);
+      } catch (e) {}
+      var paste = !!(plan && plan.mode === "paste");
+      mailPasteWarnEl.style.display = paste ? "" : "none";
+      if (paste) {
+        mailPasteWarnEl.textContent =
+          window.SpamAvenger.PASTE_MODE_WARNING;
+      }
+    }
     function applyLaunchedBadge(lane, ts, already) {
       var t = badgeTargets[lane];
       if (!t) return;
@@ -1673,6 +2322,13 @@
         "class": "sf-btn-green" }, compBtnLabel);
       badgeTargets.complaint.els.push(compBtn);
       showGreen = true; // Open in Gmail
+      var compSendAs = sendAsHintEl();
+      if (compSendAs) cw.appendChild(compSendAs);
+      mailPasteWarnEl = h("p",
+        { "class": "sf-note sf-paste-warn" }, "");
+      mailPasteWarnEl.style.display = "none";
+      cw.appendChild(mailPasteWarnEl);
+      refreshMailPasteWarn();
       cw.appendChild(h("div", { "class": "sf-actions" }, compBtn));
       // v1.0.66: launched-status line for the complaint lane,
       // inside the section under the compose button.
@@ -1716,14 +2372,25 @@
       });
       }
     } else if (a.ip && !a.skipComplaint) {
-      stack.appendChild(h("p", { "class": "sf-warn" },
+      // Public 1.0.72 release (internal build .73): this
+      // warning is the abuse complaint lane's stand-in, so
+      // it opens with the lane's name in bold like every
+      // lane stand-in note (see placeGateNote) — the wording
+      // after the label is unchanged. And like every
+      // stand-in it is COLLECTED into the Blocked lanes
+      // group at the bottom of the stack (see
+      // addBlockedNote), not appended where the lane would
+      // have rendered.
+      addBlockedNote(h("p", { "class": "sf-warn" },
+        h("b", null, "Abuse complaint:"), " " +
         "No published abuse contact for this IP. " +
         "Report the links below via Google Safe Browsing instead."));
     } else if (a.skipComplaint) {
-      stack.appendChild(h("p", { "class": "sf-warn" },
-        a.providerAdvice ||
+      addBlockedNote(h("p", { "class": "sf-warn" },
+        h("b", null, "Abuse complaint:"), " " +
+        (a.providerAdvice ||
         ("This came from a big mailbox provider\u2019s own servers \u2014 " +
-         "no complaint generated (it would hit the wrong target).")));
+         "no complaint generated (it would hit the wrong target)."))));
       if (a.gmailAutoReport) {
         var rb = h("button", { id: "sf-report-phish",
           "class": "sf-btn-green" }, "Report phishing to Google");
@@ -1796,6 +2463,90 @@
     function renderDomainTraceSections() {
       var w = a.websiteHost;
       var pidToggle = stack.querySelector("#sf-sec-pid-toggle");
+      // v1.0.72: lane-gating outcomes that REPLACE a section
+      // with one plain explanation line (runLaneGating ran
+      // before this render and recorded them on the analysis):
+      // the sender domain has no live website (Michael's exact
+      // sentence — no button, no drafted complaint), or a
+      // website exists but the company hosting it is hidden
+      // behind a front-door proxy whose origin never leaked
+      // (names nobody — the front-door company is never
+      // mentioned to the user). The registrar section and the
+      // report lanes are untouched by both.
+      // Public 1.0.72 release (internal build .73): every
+      // note that stands in for an absent lane OPENS with
+      // the lane's name in bold (Michael's call, Nov 8
+      // 2026) — an unlabeled explanation reads as a
+      // NEIGHBORING lane's warning (his vitluma.fun catch:
+      // the no-website note sat under the FTC row and read
+      // as an FTC warning). The sentence itself is
+      // unchanged; the label does the attributing. And the
+      // note no longer renders in place at all: it is
+      // COLLECTED into the Blocked lanes group at the
+      // bottom of the stack (see addBlockedNote), where
+      // the labels matter even more — notes from several
+      // lanes sit side by side there, each naming its own.
+      function placeGateNote(label, text) {
+        var n = h("p", { "class": "sf-note" },
+          h("b", null, label), " " + text);
+        addBlockedNote(n);
+        return n;
+      }
+      // Public 1.0.72 release (internal build .73): the
+      // paste-mode warning (queued-registrar-paste-mode.md
+      // item 2) — when a lane's complaint will open in paste
+      // mode, its section says so BEFORE the click, next to
+      // the button, so the user never discovers paste mode
+      // inside the compose. The prediction runs the same fit
+      // the click will run (fitGivenComplaint, same account,
+      // same complaint object), so the warning and the click
+      // can never disagree.
+      function pasteWarnEl(complaint) {
+        var plan = null;
+        try {
+          plan = window.SpamAvenger.fitGivenComplaint(
+            accountIndex(), complaint);
+        } catch (e) {}
+        if (!plan || plan.mode !== "paste") return null;
+        return h("p", { "class": "sf-note sf-paste-warn" },
+          window.SpamAvenger.PASTE_MODE_WARNING);
+      }
+      if (a.spoofDomainSuppressed) {
+        // Public 1.0.72 release (internal build .73): the
+        // From domain is spoofed (runLaneGating's composite
+        // trigger) — BOTH domain lanes are suppressed and
+        // this one note stands where they would have. It
+        // supersedes the website-only gate notes below: it
+        // explains both absences.
+        placeGateNote("Website host and Registrar:",
+          window.SpamAvenger.SPOOF_DOMAIN_EXPLANATION);
+        // The traced facts are still evidence: the website
+        // rows join Show details in the same prefixed form
+        // the no-contact branch below uses. (The Show
+        // details gate holds the toggle until this render,
+        // so the rows are present before it can first open.)
+        if (w && w.ip) {
+          details.appendChild(mkRow("Website domain",
+            w.domain || "unknown"));
+          details.appendChild(mkRow("Website IP", w.ip +
+            (w.checkedDate ? " (checked " + w.checkedDate + ")" : ""),
+            true));
+          if (w.host && w.host !== "unknown") {
+            details.appendChild(mkRow("Website host", w.host));
+          }
+          if (w.org) {
+            details.appendChild(mkRow("Website owned by", w.org));
+          }
+          details.appendChild(mkRow("Website abuse contact",
+            w.abuse || "not published"));
+        }
+      } else if (a.websiteSuppressed) {
+        placeGateNote("Website host complaint:",
+          window.SpamAvenger.NO_SITE_EXPLANATION);
+      } else if (a.websiteHostHidden) {
+        placeGateNote("Website host complaint:",
+          window.SpamAvenger.HOST_HIDDEN_EXPLANATION);
+      }
       function placeAbovePid(sec) {
         if (pidToggle) {
           stack.insertBefore(sec.toggle, pidToggle);
@@ -1805,11 +2556,12 @@
       // Shared Open-in-Gmail wiring for the two new email
       // complaints: the mail lane's flow (fit, paste fallback
       // with the full text copied, label swap) against the
-      // lane's own complaint via fitGivenComplaint. The label
-      // swap rewrites the button's own textContent — safe
-      // here precisely because these buttons carry no badge
-      // sibling (the hazard the mail lanes' .sf-btn-label
-      // spans guard against; the span count there is pinned).
+      // lane's own complaint via fitGivenComplaint.
+      // Public 1.0.72 release (internal build .73): the
+      // website and registrar buttons now carry the launched
+      // badge beside a .sf-btn-label span, exactly like the
+      // mail lane's — so the label swap rewrites the span
+      // when the button has one (see the click handler).
       function wireCompose(btn, complaint, lane) {
         btn.addEventListener("click", function () {
           var plan = window.SpamAvenger.fitGivenComplaint(
@@ -1818,9 +2570,18 @@
           // v1.0.71 fix: the compose opened \u2014 the lane was
           // launched, same wording as every other lane
           // ("Launched", never "Sent": the user reviews and
-          // sends in the compose themselves). Badge lives on
-          // the section toggle, not this button, so the paste
-          // label swap below cannot eat it.
+          // sends in the compose themselves).
+          // Public 1.0.72 release (internal build .73): the
+          // badge now lives on this button TOO (the stamp
+          // parity fix — see the registry comment above), so
+          // the paste label swap below rewrites the button's
+          // .sf-btn-label span when it has one, never the
+          // whole button: a textContent write would wipe the
+          // badge span riding beside the label (the complaint
+          // lane's test5 hazard). Every wired button carries
+          // the span since the link host joined the stamp
+          // system; a button without one keeps the
+          // whole-button swap.
           if (lane) {
             recordLaunched(lane);
             applyLaunchedBadge(lane, Date.now());
@@ -1830,17 +2591,19 @@
               navigator.clipboard.writeText(plan.complaint.body)
                 .catch(function () {});
             }
-            var origLabel = btn.textContent;
-            btn.textContent =
+            var swapEl = btn.querySelector(".sf-btn-label") || btn;
+            var origLabel = swapEl.textContent;
+            swapEl.textContent =
               "Copied! Paste into the email (Ctrl+V), then Send";
             setTimeout(function () {
-              btn.textContent = origLabel;
+              swapEl.textContent = origLabel;
             }, 6000);
           }
           window.open(plan.url, "_blank", "noopener");
         });
       }
-      if (w && w.ip) {
+      if (w && w.ip && !a.websiteSuppressed && !a.websiteHostHidden &&
+          !a.spoofDomainSuppressed) {
         var hint = w.formLane === "ovh" ? OVH_FORM_HINT
           : (w.formLane ? HYPER_FORM_HINTS[w.formLane] : null);
         if (w.formLane && hint) {
@@ -1854,7 +2617,7 @@
           // carries no per-field steps.
           var wFormSec = acc.section("sf-sec-website", "sf-btn-blue",
             "Website host \u2014 use their form");
-          badgeTargets.website = { el: wFormSec.toggle };
+          badgeTargets.website = { els: [wFormSec.toggle] };
           placeAbovePid(wFormSec);
           var wfw = h("div", { "class": "sf-complaint" });
           if (hint.fact) {
@@ -1885,9 +2648,11 @@
               h("a", { href: hint.url, target: "_blank",
                 rel: "noopener" }, hint.linkText)));
           }
-          var wFormBtn = h("button", { id: "sf-open-website-form",
-            "class": "sf-btn-blue", "type": "button" },
+          var wFormBtnLabel = h("span", { "class": "sf-btn-label" },
             "Copy evidence & open the " + hint.label + " abuse form");
+          var wFormBtn = h("button", { id: "sf-open-website-form",
+            "class": "sf-btn-blue", "type": "button" }, wFormBtnLabel);
+          badgeTargets.website.els.push(wFormBtn);
           wFormBtn.addEventListener("click", function () {
             var copied = false;
             try {
@@ -1900,12 +2665,12 @@
                 .catch(function () {});
               copied = true;
             }
-            var origLabel = wFormBtn.textContent;
-            wFormBtn.textContent = copied
+            var origLabel = wFormBtnLabel.textContent;
+            wFormBtnLabel.textContent = copied
               ? "Copied! The form is open \u2014 paste into its details field (Ctrl+V or right-click \u2192 Paste)"
               : "The form is open \u2014 copy the box text above and paste it in";
             setTimeout(function () {
-              wFormBtn.textContent = origLabel;
+              wFormBtnLabel.textContent = origLabel;
             }, 6000);
             recordLaunched("website");
             applyLaunchedBadge("website", Date.now());
@@ -1917,7 +2682,7 @@
         } else if (a.websiteComplaint) {
           var wSec = acc.section("sf-sec-website", "sf-btn-green",
             "Website host complaint \u2014 ready to send");
-          badgeTargets.website = { el: wSec.toggle };
+          badgeTargets.website = { els: [wSec.toggle] };
           placeAbovePid(wSec);
           var ww = h("div", { "class": "sf-complaint" });
           ww.appendChild(h("p", { "class": "sf-note" },
@@ -1943,36 +2708,233 @@
           ww.appendChild(wTa);
           var wBtn = h("button", { id: "sf-website-compose",
             "class": "sf-btn-green" },
-            "Open in Gmail \u2014 just click Send");
+            h("span", { "class": "sf-btn-label" },
+              "Open in Gmail \u2014 just click Send"));
+          badgeTargets.website.els.push(wBtn);
           wireCompose(wBtn, a.websiteComplaint, "website");
+          var wSendAs = sendAsHintEl();
+          if (wSendAs) ww.appendChild(wSendAs);
+          var wPaste = pasteWarnEl(a.websiteComplaint);
+          if (wPaste) ww.appendChild(wPaste);
           ww.appendChild(h("div", { "class": "sf-actions" }, wBtn));
           wSec.panel.appendChild(ww);
         } else {
-          var wInfoSec = acc.section("sf-sec-website", "sf-btn-blue",
-            "Website host \u2014 no published abuse contact");
-          placeAbovePid(wInfoSec);
-          var wiw = h("div", { "class": "sf-complaint" });
-          wiw.appendChild(mkRow("Domain", w.domain || "unknown"));
-          wiw.appendChild(mkRow("Website IP", w.ip, true));
+          // Public 1.0.72 release (internal build .73),
+          // Michael's call Nov 8 2026: NO blue info-only
+          // section here. Blue means "needs a few steps from
+          // you, and I'll guide you through them" — a host
+          // with no published abuse contact has no steps and
+          // nothing to click, so there is no button, no
+          // toggle, and no badge target. The facts move into
+          // Show details as prefixed rows instead (prefixed
+          // because the details block already carries the
+          // MAIL host's unprefixed Sending IP / Server /
+          // Owned by / Abuse contact rows). The Show details
+          // gate at the top of this render holds the toggle
+          // until this trace settles, so these rows are
+          // always present the first time the details open.
+          details.appendChild(mkRow("Website domain",
+            w.domain || "unknown"));
+          details.appendChild(mkRow("Website IP", w.ip +
+            (w.checkedDate ? " (checked " + w.checkedDate + ")" : ""),
+            true));
           if (w.host && w.host !== "unknown") {
-            wiw.appendChild(mkRow("Host", w.host));
+            details.appendChild(mkRow("Website host", w.host));
           }
-          if (w.org) wiw.appendChild(mkRow("Owned by", w.org));
-          wiw.appendChild(h("p", { "class": "sf-note" },
-            "No published abuse contact for this host, so " +
-            "there's no complaint to send them. The facts " +
-            "still stand as evidence \u2014 the report lanes " +
-            "below carry them to desks that do act."));
-          wInfoSec.panel.appendChild(wiw);
+          if (w.org) {
+            details.appendChild(mkRow("Website owned by", w.org));
+          }
+          details.appendChild(mkRow("Website abuse contact",
+            "not published"));
+        }
+      }
+      // v1.0.72: the LINK host section — whoever hosts the
+      // page the message's primary link leads to, traced by
+      // runLaneGating (live check on the link's host, then the
+      // same DNS + RDAP identity work as the website lane,
+      // with front-door origin discovery behind it). Phish
+      // payloads virtually never live on the From domain; they
+      // live where the button points, and that host is the
+      // killable asset. Rendered only when the link's page is
+      // LIVE (a dead or parked link host gets no section — the
+      // Safe Browsing gating in applyClassification covers the
+      // consequence) and its desk isn't the mail lane's own
+      // (runLaneGating suppresses that duplicate). The three
+      // shapes mirror the website section's exactly.
+      var lh = a.linkHost;
+      if (a.linkHostHidden) {
+        placeGateNote("Link host complaint:",
+          window.SpamAvenger.HOST_HIDDEN_EXPLANATION);
+      } else if (lh && lh.ip) {
+        var lHint = lh.formLane === "ovh" ? OVH_FORM_HINT
+          : (lh.formLane ? HYPER_FORM_HINTS[lh.formLane] : null);
+        if (lh.formLane && lHint) {
+          var lFormSec = acc.section("sf-sec-linkhost", "sf-btn-blue",
+            "Link host — use their form");
+          // Public 1.0.72 release (internal build .73): the
+          // link host joins the launched-stamp system
+          // (Michael's field catch, Nov 8 2026 — its toggle
+          // and button never stamped while the registrar
+          // lane beside it stamped both). Two-target shape
+          // like website/registrar: toggle first, the inner
+          // button pushed in below.
+          badgeTargets.linkhost = { els: [lFormSec.toggle] };
+          placeAbovePid(lFormSec);
+          var lfw = h("div", { "class": "sf-complaint" });
+          if (lHint.fact) {
+            lfw.appendChild(h("p", { "class": "sf-note" }, lHint.fact));
+          }
+          lfw.appendChild(h("p", { "class": "sf-note" },
+            "The page this message's link leads to — " +
+            (lh.url || lh.domain) + " — is hosted by " +
+            lHint.label + " at " + lh.ip + ". Your report " +
+            "details are in the box below. The button copies " +
+            "them to your clipboard and opens the " +
+            lHint.label + " abuse form. " +
+            (lHint.pick ? lHint.pick + " " : "") +
+            "On the form, paste into the details field — " +
+            "Ctrl+V, or right-click and choose Paste — " +
+            "then submit the form."));
+          lfw.appendChild(h("b", null,
+            "Form evidence — paste into the " + lHint.label +
+            " abuse form"));
+          var lEta = h("textarea", { id: "sf-link-evidence" });
+          lEta.readOnly = true;
+          lEta.value =
+            window.SpamAvenger.buildLinkFormEvidence(a) || "";
+          lfw.appendChild(lEta);
+          if (lHint.showLink) {
+            lfw.appendChild(h("p", { "class": "sf-fine" },
+              "Abuse form: ",
+              h("a", { href: lHint.url, target: "_blank",
+                rel: "noopener" }, lHint.linkText)));
+          }
+          var lFormBtnLabel = h("span", { "class": "sf-btn-label" },
+            "Copy evidence & open the " + lHint.label + " abuse form");
+          var lFormBtn = h("button", { id: "sf-open-link-form",
+            "class": "sf-btn-blue", "type": "button" }, lFormBtnLabel);
+          badgeTargets.linkhost.els.push(lFormBtn);
+          lFormBtn.addEventListener("click", function () {
+            var copied = false;
+            try {
+              lEta.focus();
+              lEta.select();
+              copied = document.execCommand("copy");
+            } catch (e) {}
+            if (!copied && navigator.clipboard) {
+              navigator.clipboard.writeText(lEta.value)
+                .catch(function () {});
+              copied = true;
+            }
+            // The label lives in its own span (the website
+            // form button's arrangement): the swap rewrites
+            // the span, never the whole button, so the
+            // launched badge riding beside it survives.
+            var origLabel = lFormBtnLabel.textContent;
+            lFormBtnLabel.textContent = copied
+              ? "Copied! The form is open — paste into its details field (Ctrl+V or right-click → Paste)"
+              : "The form is open — copy the box text above and paste it in";
+            setTimeout(function () {
+              lFormBtnLabel.textContent = origLabel;
+            }, 6000);
+            // recordLaunched also records the sighting
+            // (saDeskFor has the linkhost case) — the launch
+            // this button always made, now timestamped like
+            // every other lane's.
+            recordLaunched("linkhost");
+            applyLaunchedBadge("linkhost", Date.now());
+            window.open(lHint.url, "_blank", "noopener");
+          });
+          lfw.appendChild(
+            h("div", { "class": "sf-actions" }, lFormBtn));
+          lFormSec.panel.appendChild(lfw);
+        } else if (a.linkComplaint) {
+          var lSec = acc.section("sf-sec-linkhost", "sf-btn-green",
+            "Link host complaint — ready to send");
+          badgeTargets.linkhost = { els: [lSec.toggle] };
+          placeAbovePid(lSec);
+          var lw = h("div", { "class": "sf-complaint" });
+          lw.appendChild(h("p", { "class": "sf-note" },
+            "Separate from the mail host above and from the " +
+            "sender's own website: this is who hosts the PAGE " +
+            "this message's link leads to — the page its " +
+            "readers are sent to."));
+          lw.appendChild(mkRow("Page", lh.url || "unknown"));
+          lw.appendChild(mkRow("Domain", lh.domain || "unknown"));
+          lw.appendChild(mkRow("Website IP", lh.ip +
+            (lh.checkedDate ? " (checked " + lh.checkedDate + ")" : ""),
+            true));
+          if (lh.host && lh.host !== "unknown") {
+            lw.appendChild(mkRow("Host", lh.host));
+          }
+          if (lh.org) lw.appendChild(mkRow("Owned by", lh.org));
+          lw.appendChild(mkRow("Abuse contact", a.linkComplaint.to));
+          var lTa = h("textarea", { id: "sf-link-text" });
+          lTa.readOnly = true;
+          lTa.value = "To: " + a.linkComplaint.to +
+            "\nSubject: " + a.linkComplaint.subject +
+            "\n\n" + a.linkComplaint.body;
+          lw.appendChild(lTa);
+          var lBtn = h("button", { id: "sf-link-compose",
+            "class": "sf-btn-green" },
+            h("span", { "class": "sf-btn-label" },
+              "Open in Gmail — just click Send"));
+          badgeTargets.linkhost.els.push(lBtn);
+          // The lane name rides wireCompose now (it used to
+          // be null, with a bare sighting recorded by a
+          // second listener): wireCompose records the launch
+          // AND the sighting through recordLaunched, and
+          // badges this button; the toggle mirrors it.
+          wireCompose(lBtn, a.linkComplaint, "linkhost");
+          var lSendAs = sendAsHintEl();
+          if (lSendAs) lw.appendChild(lSendAs);
+          var lPaste = pasteWarnEl(a.linkComplaint);
+          if (lPaste) lw.appendChild(lPaste);
+          lw.appendChild(h("div", { "class": "sf-actions" }, lBtn));
+          lSec.panel.appendChild(lw);
+        } else {
+          // Public 1.0.72 release (internal build .73): the
+          // link host takes the same ruling as the website
+          // host above — no blue info-only section, no
+          // button, no toggle, no badge target. Its facts
+          // move into Show details as prefixed rows, present
+          // before the details can first open (the trace
+          // gate at the top of this render sees to that).
+          details.appendChild(mkRow("Link page",
+            lh.url || "unknown"));
+          details.appendChild(mkRow("Link domain",
+            lh.domain || "unknown"));
+          details.appendChild(mkRow("Link IP", lh.ip +
+            (lh.checkedDate ? " (checked " + lh.checkedDate + ")" : ""),
+            true));
+          if (lh.host && lh.host !== "unknown") {
+            details.appendChild(mkRow("Link host", lh.host));
+          }
+          if (lh.org) {
+            details.appendChild(mkRow("Link owned by", lh.org));
+          }
+          details.appendChild(mkRow("Link abuse contact",
+            "not published"));
         }
       }
       var ri = a.registrarInfo;
-      if (ri && (ri.registrar || ri.registered ||
-                 ri.registrarAbuse || ri.registrant)) {
+      if (!a.spoofDomainSuppressed && ri && (ri.registrar ||
+                 ri.registered || ri.registrarAbuse ||
+                 ri.registrant)) {
+        // Public 1.0.72 release (internal build .73): July
+        // Name Limited takes abuse reports only through its
+        // own form (lib registrarFormLane) — for that
+        // registrar alone, this section renders as the form
+        // kit instead of the email lane.
+        var regFormLane = window.SpamAvenger.registrarFormLane
+          ? window.SpamAvenger.registrarFormLane(a) : null;
         var rSec = acc.section("sf-sec-registrar",
-          a.registrarComplaint ? "sf-btn-green" : "sf-btn-blue",
-          "Registrar report \u2014 the domain itself");
-        badgeTargets.registrar = { el: rSec.toggle };
+          regFormLane ? "sf-btn-blue"
+            : (a.registrarComplaint ? "sf-btn-green"
+               : "sf-btn-blue"),
+          regFormLane ? "Registrar report \u2014 use their form"
+            : "Registrar report \u2014 the domain itself");
+        badgeTargets.registrar = { els: [rSec.toggle] };
         placeAbovePid(rSec);
         var rw = h("div", { "class": "sf-complaint" });
         if (ri.registrar) {
@@ -2002,27 +2964,167 @@
               regParts.join(", ")));
           }
         }
-        if (ri.registrarAbuse) {
-          rw.appendChild(mkRow("Abuse contact", ri.registrarAbuse));
-          var rCopyBtn = h("button", { "class": "sf-btn-blue",
-            "type": "button" }, "Copy the abuse address");
-          rCopyBtn.addEventListener("click", function () {
-            var done = function () {
-              var orig = rCopyBtn.textContent;
-              rCopyBtn.textContent = "Copied!";
-              setTimeout(function () {
-                rCopyBtn.textContent = orig;
-              }, 4000);
-            };
-            if (navigator.clipboard) {
-              navigator.clipboard.writeText(ri.registrarAbuse)
-                .then(done).catch(done);
-            } else { done(); }
+        if (regFormLane) {
+          // The July Name form kit, same shape as a deflector
+          // host's: the evidence box plus one button that
+          // copies it and opens the registrar's own form. No
+          // email complaint, no Open in Gmail, no
+          // copy-the-address button in this section — the
+          // email desk is retired, so the fact rows above are
+          // all that remains of the email presentation. The
+          // form open is the lane's launched action, badged
+          // like every form kit.
+          rw.appendChild(h("p", { "class": "sf-note" },
+            "This registrar doesn't take abuse reports by " +
+            "email \u2014 reports go through its own form. Your " +
+            "report details are in the box below. The button " +
+            "copies them to your clipboard and opens the " +
+            "July Name abuse form. On the form, paste into " +
+            "the details field \u2014 Ctrl+V, or right-click " +
+            "and choose Paste \u2014 then submit the form."));
+          // Public 1.0.72 release (internal build .73): the
+          // field guide to the registrar's own form, REWRITTEN
+          // after Michael's live walk of Nov 8 2026 (a real
+          // report went through: case JY202611090000004).
+          // Every word is written TO the user who will face
+          // this form, second person, in the order the hoops
+          // are hit: Chinese only; an emailed verification
+          // code whose "can't be empty" error may surface
+          // beside an unrelated field; a REQUIRED legal-
+          // website field; a description box capped at 1,000
+          // characters (which is why the kit now copies a
+          // short text); a REQUIRED screenshot that must
+          // show the domain and the date; an anti-bot shield
+          // that can serve a blank page; and errors that
+          // arrive one at a time. It corrects the earlier
+          // guide on the screenshot, which is required, not
+          // optional. Panel-only text — none of it enters
+          // the copied evidence.
+          rw.appendChild(h("p", { "class": "sf-note" },
+            h("b", null, "Walking their form:"), h("br"),
+            "Heads-up: the form is in Chinese. To read it " +
+            "in English, use your browser's translate " +
+            "button \u2014 in Firefox, the icon at the right " +
+            "end of the address bar (or right-click the " +
+            "page and choose Translate Page).", h("br"),
+            "Where the form asks who you are, choose " +
+            "Personal.", h("br"),
+            "Enter an email address you can read, then " +
+            "click \u201CSend code\u201D: the form emails you a " +
+            "6-digit code to type into the verification " +
+            "field. That's the " +
+            "registrar's gate, not Spam Avenger's. " +
+            "If you submit with the code field " +
+            "empty, the form answers \u201CIt can't be empty\u201D " +
+            "\u2014 and that error may pop up next to an " +
+            "unrelated field. The scolding means the code.", h("br"),
+            "For the report type, check the first box " +
+            "\u2014 fraud / phishing email. If the spam " +
+            "links to a fake store, check the second box " +
+            "(fraudulent phishing / counterfeit websites) " +
+            "too.", h("br"),
+            "The domain field takes the reported domain " +
+            "alone. The link field takes the spam's link " +
+            "as a normal https address \u2014 the text the " +
+            "button copies already carries the link in " +
+            "that form, so copy it from there.", h("br"),
+            "The \u201Clegal website\u201D field wants " +
+            "the real website of the brand the spam is " +
+            "impersonating, written like www.brand.com " +
+            "\u2014 and it is a required field: the form " +
+            "will not submit without it.", h("br"),
+            "The description field has a hard cap: " +
+            "1,000 characters, and the form rejects " +
+            "anything longer. That cap is why the text " +
+            "the button copies is short. Paste it in " +
+            "exactly as copied \u2014 the full headers " +
+            "ride in the screenshot below.", h("br"),
+            "A screenshot is required \u2014 the field has " +
+            "a red asterisk \u2014 and it must clearly show " +
+            "the reported domain name and the date and " +
+            "time. The easy source is this message itself: " +
+            "open Gmail's three-dot menu on the message " +
+            "and choose \u201CShow original\u201D, then screenshot " +
+            "the summary table at the top \u2014 it shows " +
+            "the sender, the domain, the subject and the " +
+            "date in one frame. Printing that page to a " +
+            "PDF works too; the form takes png, jpg, gif " +
+            "or pdf up to 8M.", h("br"),
+            "Their site runs anti-bot armor: if a page " +
+            "loads blank, or an upload won't stick, that " +
+            "is their shield, not your mistake \u2014 " +
+            "reload and try again.", h("br"),
+            "The form reports problems one at a time: " +
+            "fix the field it names, submit again, and " +
+            "the next problem \u2014 if there is one \u2014 " +
+            "will name the next field.", h("br"),
+            "When it finally accepts, write down the " +
+            "report number it shows \u2014 it starts with JY. " +
+            "A notification email follows, and you can " +
+            "check the report's progress with that number."));
+          rw.appendChild(h("b", null,
+            "Form evidence \u2014 paste into the July Name " +
+            "abuse form"));
+          var rEta = h("textarea",
+            { id: "sf-registrar-evidence" });
+          rEta.readOnly = true;
+          // The July Name kit shows and copies the SHORT
+          // evidence (lib buildRegistrarShortEvidence):
+          // the registrar's description field caps at the
+          // lane's descriptionCap, which the full evidence
+          // can never fit. What the user sees in this box
+          // is exactly what the button copies.
+          rEta.value = window.SpamAvenger
+            .buildRegistrarShortEvidence(a) || "";
+          rw.appendChild(rEta);
+          rw.appendChild(h("p", { "class": "sf-fine" },
+            "Abuse form: ",
+            h("a", { href: regFormLane.url, target: "_blank",
+              rel: "noopener" }, regFormLane.linkText)));
+          var rFormBtnLabel = h("span",
+            { "class": "sf-btn-label" },
+            "Open the July Name abuse form");
+          var rFormBtn = h("button",
+            { id: "sf-open-registrar-form",
+              "class": "sf-btn-blue", "type": "button" },
+            rFormBtnLabel);
+          badgeTargets.registrar.els.push(rFormBtn);
+          rFormBtn.addEventListener("click", function () {
+            var copied = false;
+            try {
+              rEta.focus();
+              rEta.select();
+              copied = document.execCommand("copy");
+            } catch (e) {}
+            if (!copied && navigator.clipboard) {
+              navigator.clipboard.writeText(rEta.value)
+                .catch(function () {});
+              copied = true;
+            }
+            var origLabel = rFormBtnLabel.textContent;
+            rFormBtnLabel.textContent = copied
+              ? "Copied! The form is open \u2014 paste into its details field (Ctrl+V or right-click \u2192 Paste)"
+              : "The form is open \u2014 copy the box text above and paste it in";
+            setTimeout(function () {
+              rFormBtnLabel.textContent = origLabel;
+            }, 6000);
+            recordLaunched("registrar");
+            applyLaunchedBadge("registrar", Date.now());
+            window.open(regFormLane.url, "_blank", "noopener");
           });
           rw.appendChild(
-            h("div", { "class": "sf-actions" }, rCopyBtn));
+            h("div", { "class": "sf-actions" }, rFormBtn));
         }
-        if (a.registrarComplaint) {
+        if (!regFormLane && ri.registrarAbuse) {
+          // Public 1.0.72 release (internal build .73): the
+          // "Copy the abuse address" button is REMOVED
+          // (queued-registrar-paste-mode.md item 1, Michael's
+          // call Nov 8 2026) — the address already shows in
+          // this row and is auto-filled into the compose To;
+          // the button was a third copy of the same fact.
+          rw.appendChild(mkRow("Abuse contact", ri.registrarAbuse));
+        }
+        if (!regFormLane && a.registrarComplaint) {
           var rTa = h("textarea", { id: "sf-registrar-text" });
           rTa.readOnly = true;
           rTa.value = "To: " + a.registrarComplaint.to +
@@ -2031,10 +3133,16 @@
           rw.appendChild(rTa);
           var rBtn = h("button", { id: "sf-registrar-compose",
             "class": "sf-btn-green" },
-            "Open in Gmail \u2014 just click Send");
+            h("span", { "class": "sf-btn-label" },
+              "Open in Gmail \u2014 just click Send"));
+          badgeTargets.registrar.els.push(rBtn);
           wireCompose(rBtn, a.registrarComplaint, "registrar");
+          var rSendAs = sendAsHintEl();
+          if (rSendAs) rw.appendChild(rSendAs);
+          var rPaste = pasteWarnEl(a.registrarComplaint);
+          if (rPaste) rw.appendChild(rPaste);
           rw.appendChild(h("div", { "class": "sf-actions" }, rBtn));
-        } else if (ri.registrarAbuse) {
+        } else if (!regFormLane && ri.registrarAbuse) {
           rw.appendChild(h("p", { "class": "sf-note" },
             "No pre-written complaint for this registrar \u2014 " +
             "the abuse address above is the desk to write to " +
@@ -2047,24 +3155,337 @@
       // stored history. This render runs asynchronously (the
       // domain trace is a network promise), long after the main
       // render's preset callback, so it loads the record itself.
+      // Public 1.0.72: linkhost presets here too — its section
+      // renders in this same async pass.
       var domainHistStore = saStorageLocal();
       saLoadLaunched(domainHistStore, msgKey, function (rec) {
         if (!rec) return;
-        ["website", "registrar"].forEach(function (lane) {
+        ["website", "registrar", "linkhost"].forEach(function (lane) {
           if (typeof rec[lane] === "number") {
             applyLaunchedBadge(lane, rec[lane]);
           }
         });
       });
     }
+    // v1.0.72: lane gating — the live-website checks and
+    // real-host discovery that decide which lanes this panel
+    // may honestly offer. Runs after the domain trace (it
+    // reads the website IP the trace resolved), mutates the
+    // analysis (website suppression / origin replacement /
+    // link host assembly), and records its verdicts on
+    // a.laneGate for applyClassification. Every failure mode
+    // resolves to "unknown" verdicts and an untouched
+    // analysis — the panel then behaves exactly as before.
+    function runLaneGating() {
+      var SA = window.SpamAvenger;
+      var gate = { senderSite: null, senderSiteRg: null,
+        linkSite: null, linkDomain: null };
+      a.laneGate = gate;
+      if (!SA || !SA.classifySiteProbe) {
+        return Promise.resolve(gate);
+      }
+      var probeCache = {};
+      function probe(host) {
+        if (!host) return Promise.resolve(null);
+        if (!probeCache[host]) {
+          probeCache[host] = saProbeSiteHost(host)
+            .then(function (p) {
+              if (p && p.outcome === "response") return p;
+              // The apex often redirects or answers only on
+              // www (or the reverse) — try the other spelling
+              // before believing a network failure.
+              if (host.indexOf("www.") !== 0) {
+                return saProbeSiteHost("www." + host)
+                  .then(function (p2) {
+                    return (p2 && p2.outcome === "response")
+                      ? p2 : p;
+                  });
+              }
+              return p;
+            });
+        }
+        return probeCache[host];
+      }
+      function verdict(domain, knownIp, probeP) {
+        if (!domain) return Promise.resolve("unknown");
+        var dnsP = SA.domainNoWebsite
+          ? SA.domainNoWebsite(domain) : Promise.resolve(null);
+        return Promise.all([probeP, dnsP]).then(function (rs) {
+          return SA.classifySiteProbe({
+            dnsEmpty: rs[1] === true ? true
+              : (rs[1] === false ? false : null),
+            frontDoor: knownIp ? SA.isFrontDoorIp(knownIp)
+              : false,
+            probe: rs[0]
+          });
+        }).catch(function () { return "unknown"; });
+      }
+      var senderDomain = String(a.senderDomain || "")
+        .toLowerCase();
+      // Public 1.0.72 release (internal build .73): the
+      // REGISTRABLE domain of the From address — the domain
+      // the registrar lane complains about and the trigger's
+      // MX leg grades. Leg (2) of the spoof suppression
+      // (liveness) reads a verdict for THIS domain
+      // (gate.senderSiteRg below), not the From host's: a
+      // spoofed subdomain has no website of its own, so
+      // grading the host let support@verify.colorami.com
+      // escape suppression on Nov 8 2026 while the
+      // registrar lane aimed a full complaint at
+      // colorami.com's registrar. The website lane's own
+      // gates keep grading the From host exactly as before;
+      // only the suppression trigger's liveness leg moves.
+      var senderDomainRg = (SA.registrableDomain
+        ? SA.registrableDomain(senderDomain) : "") ||
+        senderDomain;
+      var linkDomain = SA.primaryLinkDomain
+        ? SA.primaryLinkDomain(a) : null;
+      var linkHostName = null;
+      if (SA.primaryLink && SA.hostOfUrl) {
+        linkHostName = SA.hostOfUrl(SA.primaryLink(a) || "") ||
+          null;
+      }
+      gate.linkDomain = linkDomain;
+      var senderProbeP = (senderDomain && !a.skipComplaint)
+        ? probe(senderDomain) : Promise.resolve(null);
+      var senderRgProbeP = (senderDomainRg &&
+          senderDomainRg !== senderDomain && !a.skipComplaint)
+        ? probe(senderDomainRg) : senderProbeP;
+      var linkProbeP = linkHostName ? probe(linkHostName)
+        : Promise.resolve(null);
+      var linkInfoP = Promise.resolve(null);
+      if (linkHostName && SA.websiteHostFor) {
+        linkInfoP = SA.websiteHostFor(linkHostName)
+          .catch(function () { return null; })
+          .then(function (info) {
+            if (info || !linkDomain ||
+                linkDomain === linkHostName) return info;
+            return SA.websiteHostFor(linkDomain)
+              .catch(function () { return null; });
+          });
+      }
+      return Promise.all([senderProbeP, linkProbeP, linkInfoP,
+          senderRgProbeP])
+        .then(function (rs) {
+          var linkInfo = rs[2];
+          var jobs = [];
+          jobs.push(verdict(senderDomain,
+            a.websiteHost ? a.websiteHost.ip : null,
+            Promise.resolve(rs[0])).then(function (v) {
+              gate.senderSite = v;
+              // The From host IS the registrable domain:
+              // one verdict serves both scopes.
+              if (senderDomainRg === senderDomain) {
+                gate.senderSiteRg = v;
+              }
+            }));
+          if (senderDomainRg !== senderDomain) {
+            jobs.push(verdict(senderDomainRg, null,
+              Promise.resolve(rs[3])).then(function (v) {
+                gate.senderSiteRg = v;
+              }));
+          }
+          jobs.push(verdict(linkHostName || linkDomain,
+            linkInfo ? linkInfo.ip : null,
+            Promise.resolve(rs[1])).then(function (v) {
+              gate.linkSite = v;
+            }));
+          return Promise.all(jobs).then(function () {
+            return { linkInfo: linkInfo };
+          });
+        }).then(function (ctx) {
+          // --- the sender's own website ---
+          var w = a.websiteHost;
+          // Public 1.0.72 release (internal build .73): the
+          // spoofed-From suppression (lib fromDomainSpoofed,
+          // Michael's Nov 8 2026 call) — a LIVE website on
+          // the From domain, a message that did not come from
+          // that domain's own mail infrastructure, and no
+          // link pointing at the domain itself: the domain
+          // belongs to somebody else, likely another victim,
+          // so BOTH domain lanes close here and
+          // renderDomainTraceSections prints the suppression
+          // note where they would have stood. The traced
+          // facts stay on the analysis as evidence; the mail
+          // lane, link lane and every other lane are
+          // untouched. The liveness leg is graded INSIDE the
+          // lib on gate.senderSiteRg — the registrable
+          // domain's verdict — so a spoofed subdomain whose
+          // apex runs a live site fires here even though the
+          // From host itself has no website (the Nov 8 2026
+          // verify.colorami.com escape).
+          if (SA.fromDomainSpoofed &&
+              SA.fromDomainSpoofed(a, gate)) {
+            a.spoofDomainSuppressed = true;
+            a.websiteComplaint = null;
+            a.registrarComplaint = null;
+            return ctx;
+          }
+          if (gate.senderSite === "nosite" ||
+              gate.senderSite === "parked") {
+            // Dead or parked: the website-host complaint lane
+            // is suppressed outright — no button, no draft —
+            // and renderDomainTraceSections prints Michael's
+            // explanation sentence instead.
+            a.websiteSuppressed = gate.senderSite;
+            a.websiteComplaint = null;
+            return ctx;
+          }
+          if (w && w.ip && SA.isFrontDoorIp(w.ip) &&
+              gate.senderSite === "live") {
+            // A real site behind a front-door proxy: the
+            // complaint must reach the company ACTUALLY
+            // hosting it. Discover the origin; found → the
+            // lane retargets to that host's abuse desk like
+            // any other host; not found → the lane turns off
+            // with the hidden-host explanation. The front-door
+            // company is never named to the user either way.
+            return saDiscoverOrigin(w.domain || senderDomain)
+              .then(function (originIp) {
+                if (!originIp) {
+                  a.websiteHostHidden = true;
+                  a.websiteComplaint = null;
+                  return ctx;
+                }
+                return SA.websiteHostForIp(
+                  w.domain || senderDomain, originIp)
+                  .then(function (info) {
+                    if (!info) {
+                      a.websiteHostHidden = true;
+                      a.websiteComplaint = null;
+                      return ctx;
+                    }
+                    if (a.ip && info.ip === a.ip && info.abuse &&
+                        a.abuse &&
+                        String(info.abuse).toLowerCase() ===
+                          String(a.abuse).toLowerCase()) {
+                      info = null; // the mail lane's desk again
+                    }
+                    a.websiteHost = info;
+                    a.websiteComplaint = info
+                      ? SA.buildHostingComplaint(a) : null;
+                    return ctx;
+                  });
+              });
+          }
+          return ctx;
+        }).then(function (ctx) {
+          // --- the link's host ---
+          var info = ctx.linkInfo;
+          if (!linkDomain || gate.linkSite !== "live" || !info) {
+            return gate;
+          }
+          function finishLink(li) {
+            if (!li) return;
+            if (a.ip && li.ip === a.ip && li.abuse && a.abuse &&
+                String(li.abuse).toLowerCase() ===
+                  String(a.abuse).toLowerCase()) {
+              return; // the mail lane already lands on this desk
+            }
+            li.url = SA.primaryLink(a);
+            a.linkHost = li;
+            a.linkComplaint = SA.buildLinkComplaint(a);
+          }
+          if (SA.isFrontDoorIp(info.ip)) {
+            return saDiscoverOrigin(linkDomain)
+              .then(function (originIp) {
+                if (!originIp) {
+                  a.linkHostHidden = true;
+                  return gate;
+                }
+                return SA.websiteHostForIp(linkDomain, originIp)
+                  .then(function (i2) {
+                    finishLink(i2);
+                    return gate;
+                  });
+              });
+          }
+          finishLink(info);
+          return gate;
+        }).catch(function () { return gate; });
+    }
+
+    // v1.0.72: three-way classification drives lane
+    // presentation (lib classifyBucket over the header signals
+    // plus runLaneGating's site verdicts):
+    //   fraud — report lanes lead; the APWG + CISA forward is
+    //     offered ONLY in this bucket.
+    //   uce — mail-host complaint + FTC lead; no forward.
+    //   legit — a real company, merely unwanted: the existing
+    //     PID section is promoted to the top of the stack and
+    //     opened — it is the primary action for that bucket.
+    // Safe Browsing is removed outright when the message's
+    // primary link is not a live page (final pass only; an
+    // unprobed or unknown link keeps it). Called twice: once
+    // on header signals alone (finalPass=false — only the
+    // forward row's visibility, which is reversible if gating
+    // upgrades the bucket), and again after gating settles
+    // (finalPass=true — Safe Browsing removal + PID promotion
+    // land here).
+    function applyClassification(finalPass) {
+      var SA = window.SpamAvenger;
+      if (!SA || !SA.classifyBucket) return;
+      var bucket = SA.classifyBucket(a, a.laneGate || {});
+      a.bucket = bucket;
+      if (fwdRow && fwdRow.toggle) {
+        var showFwd = bucket === "fraud";
+        fwdRow.toggle.style.display = showFwd ? "" : "none";
+        if (fwdStatus && fwdStatus.el) {
+          fwdStatus.el.style.display = showFwd ? "" : "none";
+        }
+      }
+      if (!finalPass) return;
+      if (SA.sbLaneVisible &&
+          !SA.sbLaneVisible(a, a.laneGate || {})) {
+        if (sbRow && sbRow.toggle) sbRow.toggle.remove();
+        if (sbStatus && sbStatus.el) sbStatus.el.remove();
+      }
+      if (bucket === "legit") {
+        var pidToggle = stack.querySelector("#sf-sec-pid-toggle");
+        var pidPanel = stack.querySelector("#sf-sec-pid-panel");
+        if (pidToggle && pidPanel &&
+            stack.firstChild !== pidToggle) {
+          stack.insertBefore(pidToggle, stack.firstChild);
+          stack.insertBefore(pidPanel, pidToggle.nextSibling);
+        }
+        if (pidToggle) {
+          var anyOpen = false;
+          var panels = stack.querySelectorAll(".sf-acc-panel");
+          for (var i = 0; i < panels.length; i++) {
+            if (panels[i].style.display !== "none") {
+              anyOpen = true;
+              break;
+            }
+          }
+          if (!anyOpen) pidToggle.click();
+        }
+      }
+    }
+
+    var tracePromise = Promise.resolve();
     if (window.SpamAvenger.traceSenderDomain && a.senderDomain) {
       try {
-        window.SpamAvenger.traceSenderDomain(a).then(function () {
-          if (sfCurrentMsgKey !== msgKey) return; // stale render
-          try { renderDomainTraceSections(); } catch (e) {}
-        }, function () {});
-      } catch (e) {}
+        tracePromise = Promise.resolve(
+          window.SpamAvenger.traceSenderDomain(a));
+      } catch (e) {
+        tracePromise = Promise.resolve();
+      }
     }
+    var traceChain = tracePromise.then(function () {
+      if (sfCurrentMsgKey !== msgKey) return null; // stale render
+      try { applyClassification(false); } catch (e) {}
+      return runLaneGating();
+    }).then(function () {
+      if (sfCurrentMsgKey !== msgKey) return; // stale render
+      try { renderDomainTraceSections(); } catch (e) {}
+      try { applyClassification(true); } catch (e) {}
+    }, function () {});
+    // Public 1.0.72 release (internal build .73): the Show
+    // details gate settles with this chain, on success OR
+    // failure — renderDomainTraceSections has appended any
+    // website / link detail rows by now, so a waiting toggle
+    // opens on the complete fact list.
+    traceChain.then(settleDetailsTrace, settleDetailsTrace);
     // v1.0.38: color-code legend, right above the report buttons
     // and OUTSIDE the collapsed details block, so a first-time
     // user learns what green/blue mean before they have to pick.
@@ -2138,17 +3559,35 @@
           // counts as launched exactly once.
           if (lane) {
             recordLaunched(lane);
+            // Public 1.0.72 release (internal build .73),
+            // Michael's Nov 8 2026 catch: FTC and Safe
+            // Browsing were the only launched lanes whose
+            // status line never said so — it stayed on the
+            // pre-open "Report ready" text (v1.0.35-era)
+            // while Forward ends at "Launched" and the
+            // complaint lanes at "Opened", and a return visit
+            // already preset these two lanes to "Launched".
+            // One shared `now` for the status line and the
+            // badge, matching the complaint lanes' pattern.
+            var now = Date.now();
+            setStashStatus(saLaunchedText(now));
             // v1.0.66-test2: badge the action-row button
             // in-session, at the same choke point.
-            applyLaunchedBadge(lane, Date.now());
+            applyLaunchedBadge(lane, now);
           }
         }
         try {
           if (typeof chrome === "undefined" || !chrome.storage ||
               !chrome.storage.local) {
+            // open() first, warning second: the warning must
+            // stay the final word on this lane's status line
+            // (open() writes the Launched line, but a form
+            // that opened blank is what the user needs to
+            // know). Same ordering as the storage-error paths
+            // below.
+            open();
             setStashStatus("⚠ Couldn't save the report in this " +
               "browser — opening the form blank");
-            open();
             return;
           }
           // Safety net: if the set callback somehow never fires, the
@@ -2162,6 +3601,22 @@
             subject: a.subject || "",
             ip: a.ip || "",
             server: a.host || "",
+            // Public 1.0.72 release (internal build .73):
+            // the sextortion flag + demanded wallet ride the
+            // stash so reportfill can open the FTC narrative
+            // as an extortion report and name the wallet.
+            sextortion: !!(a.sextortion && a.sextortion.flagged),
+            wallet: (a.sextortion && a.sextortion.wallet) || null,
+            // Public 1.0.72 release (internal build .73):
+            // the evidence-based spoof verdict (the lib's
+            // fromAddressSpoofed: another domain's server
+            // sent it AND DKIM never passed aligned for the
+            // From domain) — reportfill closes a sextortion
+            // narrative with one plain spoof sentence when,
+            // and only when, this holds.
+            fromSpoofed: !!(window.SpamAvenger &&
+              window.SpamAvenger.fromAddressSpoofed &&
+              window.SpamAvenger.fromAddressSpoofed(a)),
             savedAt: Date.now()
           } }, function () {
             // v1.0.31: the v1.0.30 callback never checked lastError,
@@ -2169,19 +3624,30 @@
             // v1.0.35: the wording is user-facing now — no link
             // counts or storage jargon, just ready / not ready.
             if (chrome.runtime && chrome.runtime.lastError) {
+              // Storage failed: open() still runs (a blank
+              // form beats a dead button) and the warning is
+              // written AFTER it, so the warning — not the
+              // Launched line open() sets — is the final word
+              // on the status line.
+              open();
               setStashStatus("⚠ Couldn't save the report — the " +
                 "form will open blank. You can copy the details " +
                 "from this panel and paste them in.");
             } else {
-              setStashStatus("✓ Report ready — the form opens " +
-                "filled in. Just review and submit.");
+              // Stash landed: open() sets the lane's status
+              // line to the Launched text itself (public
+              // 1.0.72 release, internal build .73 — the
+              // v1.0.35-era "Report ready" write that used to
+              // stand here is gone; it was never rewritten
+              // after the form opened, so the lane never said
+              // Launched in-session).
+              open();
             }
-            open();
           });
         } catch (e) {
+          open();
           setStashStatus("⚠ Couldn't save the report — " +
             "opening the form blank");
-          open();
         }
       };
     }
@@ -2590,6 +4056,15 @@
         var openBtn = h("button", { id: "sf-demand-open",
           "class": "sf-btn-green", "type": "button" },
           "Open in Gmail \u2014 just click Send");
+        // Public 1.0.72 release (internal build .73): the
+        // send-as hint rides this lane too — the demand
+        // letter opens in a Gmail compose like every other
+        // lane's send, and it should leave from the address
+        // the company's mail was sent to (that is the
+        // address whose data the letter demands back). The
+        // hint names it a letter here, not a complaint.
+        var pidSendAs = sendAsHintEl("letter");
+        if (pidSendAs) step.appendChild(pidSendAs);
         step.appendChild(h("div", { "class": "sf-actions" }, openBtn));
         // v1.0.66-test3: preset THIS button's launched badge
         // from the stored history. The demand step renders
@@ -2682,6 +4157,14 @@
         else renderDetailsForm();
       });
     })();
+    // Public 1.0.72 release (internal build .73): every
+    // synchronous lane is in the stack now — materialize
+    // the Blocked lanes group from whatever the mail lane
+    // collected (see addBlockedNote) and flip it live, so
+    // the async gate notes from renderDomainTraceSections
+    // render into it the moment they arrive.
+    blockedGroupLive = true;
+    renderBlockedGroup();
   }
 
   function fetchOriginal(mid, onStep, ikIn) {
@@ -2889,6 +4372,21 @@
         msg = "unreadable error object";
       }
       clearEl(panel);
+      // Public 1.0.72 release (internal build .73): the
+      // own-forward catch. When the header fetch exhausted
+      // its retries (the "wouldn't hand over the headers"
+      // signature) AND the anchored message is the user's
+      // own forward, "Something broke" is a lie — a forward
+      // carries no headers Gmail will hand over, so there
+      // is nothing to trace. Say that plainly and point at
+      // the original message. Any other failure keeps the
+      // Something broke text untouched.
+      if (msg.indexOf("wouldn't hand over the headers") !== -1 &&
+          ownForwardOnPage(messageElById(mid))) {
+        panel.appendChild(h("p", { "class": "sf-note" },
+          window.SpamAvenger.OWN_FORWARD_EXPLANATION));
+        return;
+      }
       panel.appendChild(h("p", { "class": "sf-warn" },
         "Something broke (v" + SF_VERSION + "): " + msg +
         ". Try reloading Gmail and clicking the shield again."));

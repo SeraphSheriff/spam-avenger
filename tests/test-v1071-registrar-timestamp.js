@@ -30,11 +30,11 @@ function ok(name, cond, extra) {
   else { fail++; console.log("  FAIL " + name + (extra ? " — " + extra : "")); }
 }
 
-ok("manifest version stays 1.0.71", manifest.version === "1.0.71",
+ok("manifest version stays 1.0.72", manifest.version === "1.0.72",
   "got " + manifest.version);
 ok("no new permissions", JSON.stringify(manifest.permissions) ===
   JSON.stringify(["storage"]));
-ok("host permissions still 11", manifest.host_permissions.length === 11);
+ok("host permissions = the v1.0.72 set of 14", manifest.host_permissions.length === 14);
 
 // ---------- history helpers: the new lanes record + load ----------
 const bMark = "// [sa-history-helpers-begin]";
@@ -57,9 +57,11 @@ if (bi !== -1 && ei > bi) {
     { document: { createElement: function () { return makeFakeEl(); } } });
 }
 ok("helpers evaluate standalone", !!H);
-ok("SA_LANES includes website and registrar, appended after pid",
+ok("SA_LANES includes website and registrar, appended after pid " +
+   "(public 1.0.72: linkhost appended after registrar — the " +
+   "link-host stamp parity fix, pinned in its own suite)",
   !!H && H.LANES.join(",") ===
-    "complaint,ftc,sb,fwd,google,pid,website,registrar",
+    "complaint,ftc,sb,fwd,google,pid,website,registrar,linkhost",
   H ? H.LANES.join(",") : "no helpers");
 
 function fakeStorage(seed) {
@@ -89,12 +91,14 @@ ok("unknown lane still rejected",
   H.record(fakeStorage(), "msg-1", "bogus", TS) === false);
 
 // ---------- source pins: wiring in the domain-trace render ----------
-ok("registrar toggle registered as badge target",
-  contentSrc.indexOf('badgeTargets.registrar = { el: rSec.toggle }') !== -1);
-ok("website toggle registered (complaint branch)",
-  contentSrc.indexOf('badgeTargets.website = { el: wSec.toggle }') !== -1);
-ok("website toggle registered (form branch)",
-  contentSrc.indexOf('badgeTargets.website = { el: wFormSec.toggle }') !== -1);
+ok("registrar toggle registered as badge target (public " +
+   "1.0.72: els[0] — the inner button joins under parity)",
+  contentSrc.indexOf('badgeTargets.registrar = { els: [rSec.toggle] }') !== -1);
+ok("website toggle registered (complaint branch; els shape " +
+   "under the parity fix)",
+  contentSrc.indexOf('badgeTargets.website = { els: [wSec.toggle] }') !== -1);
+ok("website toggle registered (form branch; els shape)",
+  contentSrc.indexOf('badgeTargets.website = { els: [wFormSec.toggle] }') !== -1);
 ok("wireCompose takes a lane",
   contentSrc.indexOf("function wireCompose(btn, complaint, lane)") !== -1);
 ok("wireCompose records + badges the lane on click",
@@ -106,8 +110,9 @@ ok("website compose wired with its lane",
   contentSrc.indexOf('wireCompose(wBtn, a.websiteComplaint, "website")') !== -1);
 ok("website form button records the website lane",
   contentSrc.indexOf('recordLaunched("website");') !== -1);
-ok("async trace render presets website/registrar badges itself",
-  contentSrc.indexOf('["website", "registrar"].forEach') !== -1);
+ok("async trace render presets website/registrar badges itself " +
+   "(public 1.0.72: linkhost presets in the same pass)",
+  contentSrc.indexOf('["website", "registrar", "linkhost"].forEach') !== -1);
 
 console.log("\n" + pass + " passed, " + fail + " failed");
 process.exit(fail ? 1 : 0);

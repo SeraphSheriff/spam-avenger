@@ -58,13 +58,13 @@ const FACT_LINE =
   "This host takes abuse reports through its web form; the form is where a case gets opened.";
 
 // ---------- manifest ----------
-ok("manifest version is 1.0.70", manifest.version === "1.0.70",
+ok("manifest version is 1.0.72", manifest.version === "1.0.72",
   "got " + manifest.version);
 ok("permissions unchanged: storage only",
   JSON.stringify(manifest.permissions) === JSON.stringify(["storage"]));
-ok("no new host permissions",
+ok("host permissions = the v1.0.72 set of 14 (deliberate: crt.sh + site-check wildcards)",
   Array.isArray(manifest.host_permissions) &&
-  manifest.host_permissions.length === 11);
+  manifest.host_permissions.length === 14);
 
 // ---------- the shipped azure entry (extracted verbatim) ----------
 const m = contentSrc.match(/var HYPER_FORM_HINTS = (\{[\s\S]*?\n  \});/);
