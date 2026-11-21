@@ -200,6 +200,22 @@ your Gmail account are never touched, uploaded, or sent anywhere.
   to complain to — the panel says so and points you at Google Safe
   Browsing instead.
 
+### Known Gmail behavior: your own forwards wear the Spam label
+
+When a thread is reported as spam, Gmail applies the Spam label to
+the whole thread, including your own sent messages in it. So after
+you forward a phish to APWG and CISA and report the original, your
+own forward sits in Sent wearing a Spam label, looking for all the
+world like your report bounced or was rejected. It was not: the
+forward was delivered. The label rides the thread, not the delivery.
+No filter can prevent it, because filters only act on incoming mail
+and a sent copy never passes through them.
+
+Reported to Google on Nov 21, 2026: filed through Gmail's own
+feedback, and posted publicly in the Gmail Help Community
+(https://support.google.com/mail/thread/478572841) and on X
+(https://x.com/SeraphSheriff/status/2124163028820304217).
+
 ## Files
 
 - `manifest.json` — extension manifest (Manifest V3)
