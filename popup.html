@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>SpamAvenger</title>
+<!-- panel.css owns the panel's palette: the green/blue/orange lane
+     buttons and the matching color legend. Its rules are scoped to
+     #spam-avenger-panel, which content.js assigns to the panel it
+     creates inside the slot below — no extra wrapper is needed (a
+     static one would actually be removed by content.js's closePanel).
+     Loaded first so the popup-specific overrides underneath win. -->
+<link rel="stylesheet" href="panel.css">
+<style>
+  body { width: 340px; max-height: 640px; overflow-y: auto;
+         font-family: Roboto, Arial, sans-serif; font-size: 13px;
+         color: #202124; margin: 0; padding: 14px; }
+  h1 { font-size: 16px; margin: 0 0 8px; color: #c0392b; }
+  h2 { font-size: 13px; margin: 14px 0 6px; color: #202124;
+       border-top: 1px solid #dadce0; padding-top: 12px; }
+  ol { margin: 8px 0; padding-left: 20px; }
+  li { margin: 5px 0; }
+  .fine { color: #5f6368; font-size: 11px; margin-top: 10px; }
+  a { color: #1a73e8; }
+  #sa-status { color: #5f6368; font-size: 11px; margin: 6px 0; }
+  /* Live label for the message behind the current analysis. In tab view
+     it changes as soon as a new email is displayed in Thunderbird. */
+  #sa-sync-line { display: none; margin: 6px 0 8px; padding: 6px 8px;
+    border-radius: 6px; background: #e8f0fe; color: #174ea6;
+    font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }
+  #sa-sync-line.visible { display: block; }
+  /* panel.css styles a floating page panel; here the same element sits
+     in the normal document flow and scrolls with the popup. The extra
+     #sa-panel-slot prefix outranks panel.css's #spam-avenger-panel rule. */
+  #sa-panel-slot #spam-avenger-panel {
+    position: static; right: auto; top: auto; z-index: auto;
+    width: auto; max-width: none; max-height: none;
+    color-scheme: light;
+  }
+  #sa-panel-slot #spam-avenger-panel .sf-card {
+    max-height: none; box-shadow: none; width: 100%;
+  }
+  /* The panel renders itself into this slot. */
+  #sa-panel-slot { margin: 8px 0; }
+  /* "Your details" form — same markup lib/demand.js builds in the
+     panel; this popup carries its own copy of these rules. */
+  .sa-df-row { display: flex; align-items: center; gap: 8px; margin: 5px 0; }
+  .sa-df-label { flex: 0 0 40px; color: #5f6368; font-size: 12px; }
+  .sa-df-input { flex: 1; min-width: 0; box-sizing: border-box;
+    border: 1px solid #dadce0; border-radius: 8px; padding: 7px 8px;
+    font-size: 13px; background: #fff; color: #202124; }
+  .sa-df-note { color: #5f6368; font-size: 11px; margin: 2px 0; }
+  .sa-df-save { background: #1e8e3e; color: #fff; border: none;
+    border-radius: 8px; padding: 8px 18px; font-size: 13px;
+    font-weight: 600; cursor: pointer; margin-top: 4px; }
+  .sa-df-save:hover { background: #188038; }
+  .sa-df-save:disabled { background: #9aa0a6; cursor: default; }
+  .sa-df-status { color: #5f6368; font-size: 11px; margin: 6px 0 0; }
+</style>
+</head>
+<body>
+  <h1>🛡️ Spam Avenger for Thunderbird</h1>
+  <p>One click traces who <i>really</i> sent the spam email you're reading and writes the abuse complaint for you.</p>
+  <p id="sa-status">Reading the open message&hellip;</p>
+  <div id="sa-sync-line" aria-live="polite"></div>
+  <div id="sa-panel-slot"></div>
+  <h2>Your details — for data-deletion demands</h2>
+  <p>Any email in Thunderbird can also become a formal demand that the sender
+  delete your personal data — the panel drafts it from these details,
+  citing your state's privacy law.</p>
+  <div id="sa-details-slot"></div>
+  <p class="fine">Stored only in your browser, used only to fill in deletion demands you draft.</p>
+  <p class="fine">Nothing is sent automatically. Everything runs locally;
+  the only lookups are the spammer's IP (RDAP + reverse DNS).
+  Free, no account, no config. Thunderbird 128+.</p>
+  <p class="fine"><a href="https://github.com/SeraphSheriff/spam-avenger" target="_blank">GitHub</a></p>
+  <!-- Pure logic first, then the panel UI engine, then the Thunderbird
+       orchestrator. No content script injects these into a web page any
+       more: Thunderbird gives us the raw message through its own APIs. -->
+  <script src="lib/analyze.js"></script>
+  <script src="lib/demand.js"></script>
+  <script src="content.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
