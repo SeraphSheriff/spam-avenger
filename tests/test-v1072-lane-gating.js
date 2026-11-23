@@ -64,7 +64,7 @@ function ok(name, cond, extra) {
 }
 
 // ---------- manifest / wiring ----------
-ok("manifest version is 1.0.72", manifest.version === "1.0.72",
+ok("manifest version is 1.0.73", manifest.version === "1.0.74",
   manifest.version);
 ok("manifest declares the background worker (both keys)",
   manifest.background &&

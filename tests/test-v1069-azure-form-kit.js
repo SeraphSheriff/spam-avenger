@@ -58,13 +58,13 @@ const FACT_LINE =
   "This host takes abuse reports through its web form; the form is where a case gets opened.";
 
 // ---------- manifest ----------
-ok("manifest version is 1.0.72", manifest.version === "1.0.72",
+ok("manifest version is 1.0.73", manifest.version === "1.0.74",
   "got " + manifest.version);
 ok("permissions unchanged: storage only",
   JSON.stringify(manifest.permissions) === JSON.stringify(["storage"]));
-ok("host permissions = the v1.0.72 set of 14 (deliberate: crt.sh + site-check wildcards)",
+ok("host permissions = the set of 15 (the v1.0.72 set of 14 + v1.0.78's legalportal.godaddy.com, deliberate)",
   Array.isArray(manifest.host_permissions) &&
-  manifest.host_permissions.length === 14);
+  manifest.host_permissions.length === 15);
 
 // ---------- the shipped azure entry (extracted verbatim) ----------
 const m = contentSrc.match(/var HYPER_FORM_HINTS = (\{[\s\S]*?\n  \});/);
@@ -115,9 +115,14 @@ ok("v1.0.70 retirement: the copy-details button is gone entirely",
   contentSrc.indexOf("sf-form-details-copy") === -1 &&
   contentSrc.indexOf('"Copy the details for the form"') === -1 &&
   kitSeg.indexOf("copyDetailsBtn") === -1);
-ok("the copy+open button is still the kit's only form opener + badge target",
-  (kitSeg.match(/window\.open\(/g) || []).length === 1 &&
-  kitSeg.indexOf("els.push(formBtn)") !== -1);
+ok("the copy+open button is still the kit's only FORM opener; " +
+   "v1.0.74's AWS email door is the kit's second window.open " +
+   "and second badge target (a Gmail compose, not the form)",
+  (kitSeg.match(/window\.open\(formLane\.url/g) || [])
+    .length === 1 &&
+  (kitSeg.match(/window\.open\(/g) || []).length === 2 &&
+  kitSeg.indexOf("els.push(formBtn)") !== -1 &&
+  kitSeg.indexOf("els.push(emBtn)") !== -1);
 
 // ---------- lib: the complaint-mirroring details block ----------
 // Fixture mirrors Michael's real Azure case (the Outlook

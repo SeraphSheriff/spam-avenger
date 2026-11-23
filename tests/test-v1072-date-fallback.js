@@ -42,7 +42,7 @@ function ok(name, cond, extra) {
   else { fail++; console.log("  FAIL " + name + (extra ? " — " + extra : "")); }
 }
 
-ok("manifest version stays 1.0.72", manifest.version === "1.0.72",
+ok("manifest version stays 1.0.73", manifest.version === "1.0.74",
   "got " + manifest.version);
 
 // ---------- (a) the specimen shape: garbage Date, real Received ----------

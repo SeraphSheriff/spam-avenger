@@ -1,8 +1,9 @@
 /*
  * Spam Avenger for Gmail — report-form filler (v1.0.64)
  *
- * Runs only on the Google Safe Browsing report page and the FTC's
- * ReportFraud wizard. When the user clicks "Report to FTC" or
+ * Runs only on the Google Safe Browsing report page, the FTC's
+ * ReportFraud wizard, and (since v1.0.78) GoDaddy's phishing
+ * report form. When the user clicks "Report to FTC" or
  * "Report to Google Safe Browsing" in the Gmail panel, content.js
  * stashes the case details (phish URLs, sender, subject, sending IP,
  * server) in chrome.storage.local and waits for the write before
@@ -176,6 +177,49 @@
  * page's rendered text (body.innerText) as a second source.
  * Nothing else changes.
  *
+ * v1.0.78: the GoDaddy lane graduates from kit-only to a real
+ * fill. Michael walked the registrar's phishing form live
+ * (Nov 23 2026) and the v1.0.77 kit landed the description copy
+ * but left the form's other boxes empty — his call: "seems like
+ * we can fill in more for the user, and maybe a guide pane."
+ * The form is a plain web form, so it gets the FTC treatment:
+ * the panel's GoDaddy button stashes the case (with the lane's
+ * brand / reported-domain / description payload merged in),
+ * this script fills the four fillable boxes on
+ * legalportal.godaddy.com, and the banner — header "Spam
+ * Avenger Guide", like the FTC's — says what it filled and
+ * what it left, and why. The reporter's email comes from the
+ * PID lane's saved details (sa_user_email) when the user saved
+ * one; without one the box stays empty and the guide says so —
+ * an address is never invented. The mobile checkbox and the
+ * country select are left exactly as the form presents them.
+ * A box the user already filled is never overwritten. Still
+ * NEVER clicks Submit.
+ *
+ * v1.0.79: the GoDaddy lane gets its finish line. Michael's
+ * live test of v1.0.78 (Nov 23 2026) filled, he reviewed and
+ * submitted himself, and GoDaddy's confirmation page read
+ * "Submission Complete / Thank You! Your abuse report has
+ * been successfully submitted" with a "DCU Ticket Numbers:"
+ * list — one DCU number per submitted URL (11 tickets in
+ * his run, DCU102475070 through DCU102475080, the bare
+ * domain included) — but the guide pane was still sitting
+ * on that page showing the stale fill lines ("Give it a
+ * quick review, then click Submit"). His words: "almost
+ * perfect.. a hero flash at the end will finish the
+ * polish." Now a hero watch runs on the GoDaddy portal
+ * from page load (and is re-armed when the fill pass
+ * finishes): when GoDaddy's confirmation wording is on
+ * screen, the pane swaps — all three lines at once — to a
+ * hero finish (filled-green pane, oversized checkmark,
+ * "✓ Filed with GoDaddy", the DCU ticket count when the
+ * numbers parse), with no submit language anywhere. The
+ * fill pass also checks for the confirmation before it
+ * writes anything, so a confirmation page never gets fill
+ * copy, and the storage callback hands the pane to the
+ * watch when the confirmation is already up. The watch
+ * never clicks anything.
+ *
  * The stash is erased as soon as a form is filled. Nothing is ever
  * transmitted by this script, and it NEVER clicks Submit: the user
  * reviews the filled form and sends the report themselves.
@@ -204,6 +248,14 @@
     // render() re-applies it, so a watchdog-recreated banner
     // keeps the right header.
     var headerText = "Spam Avenger";
+    // v1.0.79: hero mode — the GoDaddy confirmation finish.
+    // Once a lane's hero() lands, the pane keeps the filled
+    // accent (the pulse's green) as its resting background
+    // and the lead line runs oversized, so the finish reads
+    // as a finish line, not another instruction block. The
+    // watchdog's ensure()/render() re-apply it, so a banner
+    // the host page drops and recreates comes back heroic.
+    var heroMode = false;
 
     function log(line) {
       try { console.log("[SpamAvenger] " + line); } catch (e) {}
@@ -258,11 +310,29 @@
         }
         el.style.setProperty("background",
           steps % 2 ? PULSE_DARK : PULSE_GREEN, "important");
-        if (steps >= 5) { // 5 toggles = 3 full pulses, ends dark
+        if (steps >= 5) { // 5 toggles = 3 full pulses
           clearInterval(pulseTimer); pulseTimer = null;
-          el.style.setProperty("background", PULSE_DARK, "important");
+          // Ends dark — or, in hero mode, ends on the filled
+          // accent: the hero IS the settled state (v1.0.79).
+          el.style.setProperty("background",
+            heroMode ? PULSE_GREEN : PULSE_DARK, "important");
         }
       }, 250);
+    }
+
+    // v1.0.79: the hero look — filled accent background and
+    // an oversized lead (the checkmark headline), applied on
+    // top of the base banner style with the same !important
+    // priority. Called from ensure() both when the banner is
+    // (re)created and when a live one is re-rendered, so the
+    // hero survives the host page dropping the node.
+    function applyHero() {
+      if (!heroMode || !el) return;
+      el.style.setProperty("background", PULSE_GREEN, "important");
+      if (leadEl) {
+        leadEl.style.setProperty("font-size", "26px", "important");
+        leadEl.style.setProperty("line-height", "1.25", "important");
+      }
     }
 
     function ensure() {
@@ -270,6 +340,7 @@
       if (el && document.documentElement &&
           document.documentElement.contains(el)) {
         render();
+        applyHero();
         return;
       }
       el = document.createElement("div");
@@ -331,6 +402,7 @@
       el.appendChild(sub2El);
       (document.documentElement || document.body).appendChild(el);
       render();
+      applyHero();
     }
 
     return {
@@ -362,12 +434,38 @@
         headerText = text || "Spam Avenger";
         ensure(); // render() inside applies it to a live banner
       },
+      // v1.0.79: swap the pane to the hero finish in one
+      // move — all three lines replaced together (no stale
+      // fill line can linger under the headline), hero mode
+      // on so the look changes with the words, then the
+      // attention pulse, which now settles on the accent.
+      hero: function (lines) {
+        heroMode = true;
+        state.lead = (lines && lines.lead) || "";
+        state.sub1 = (lines && lines.sub1) || "";
+        state.sub2 = (lines && lines.sub2) || "";
+        ensure(); // render() + applyHero() put it on screen
+        attention();
+      },
       debug: function (line) { log(line); },
       attention: attention
     };
   })();
 
   Diag.init();
+
+  // v1.0.79: on GoDaddy's portal the hero watch starts at
+  // once — before the stash is even read — so a page that
+  // IS the confirmation (a fresh load after the user's own
+  // submit, or an in-tab transition that kept this script
+  // alive) swaps the pane to the hero finish instead of
+  // leaving fill lines standing, and a form page carries
+  // the watch from the start. The Guide header goes up
+  // with it, so the pane never shows the plain header here.
+  if (location.hostname === "legalportal.godaddy.com") {
+    Diag.setHeader("Spam Avenger Guide");
+    watchGoDaddyHero();
+  }
 
   if (typeof chrome === "undefined" || !chrome.storage ||
       !chrome.storage.local) {
@@ -380,12 +478,31 @@
 
   var MAX_AGE_MS = 30 * 60 * 1000; // ignore stashes older than 30 min
 
+  // v1.0.78: the reporter's saved email lives under the PID
+  // lane's storage key — lib/demand.js's DETAIL_KEYS.email,
+  // "sa_user_email". demand.js is the single source of truth
+  // for the key; it doesn't run on form pages, so the string
+  // is named here and pinned against demand.js's source by
+  // the v1.0.78 tests.
+  var SA_USER_EMAIL_KEY = "sa_user_email";
+
   chrome.storage.local.get("pendingReport", function (res) {
     if (chrome.runtime && chrome.runtime.lastError) {
       Diag.debug("stash: READ ERROR: " +
         (chrome.runtime.lastError.message || "unknown error"));
       Diag.set("lead", "\u26A0 I couldn't read your saved report " +
         "data.");
+      return;
+    }
+    // v1.0.79: on the GoDaddy portal, a confirmation already
+    // on screen outranks everything below — no "no stash" or
+    // "stale stash" line may overwrite the hero, and no fill
+    // may start. The hero watch owns the pane; return.
+    if (location.hostname === "legalportal.godaddy.com" &&
+        godaddyConfirmation(godaddyPageText()).confirmed) {
+      Diag.debug("stash: GoDaddy confirmation already on " +
+        "screen \u2014 hero watch owns the pane");
+      watchGoDaddyHero();
       return;
     }
     var stash = res && res.pendingReport;
@@ -429,6 +546,34 @@
       // the plain header on this site.
       Diag.setHeader("Spam Avenger Guide");
       fillFtc(stash);
+    } else if (location.hostname === "legalportal.godaddy.com") {
+      // v1.0.78: GoDaddy's phishing form is a plain form, so
+      // it gets the guide-pane treatment too — the banner is
+      // titled "Spam Avenger Guide" here, like the FTC's.
+      Diag.setHeader("Spam Avenger Guide");
+      // The reporter's email is NOT part of the report
+      // stash: it is the PID lane's saved detail, read here
+      // in a second, separate get (the pendingReport read
+      // above keeps its long-standing shape). A missing key
+      // simply means no saved email — fillGoDaddy leaves
+      // that box empty and the guide says so.
+      var gdFillStarted = false;
+      var gdStart = function (em) {
+        if (gdFillStarted) return;
+        gdFillStarted = true;
+        fillGoDaddy(stash, em);
+      };
+      try {
+        chrome.storage.local.get(SA_USER_EMAIL_KEY,
+          function (res2) {
+            var em = res2 && res2[SA_USER_EMAIL_KEY];
+            gdStart(typeof em === "string" ? em : "");
+          });
+      } catch (e) {
+        // Storage threw synchronously: still fill, without
+        // an email — the guide names the empty box.
+        gdStart("");
+      }
     }
   });
 
@@ -1006,6 +1151,20 @@
         "and couldn't \u2014 please click it.";
     var state = "waiting"; // waiting | trying | done | failed | user
     var engagedAt = null;
+    // v1.0.76: sawOpen records that some stepped view
+    // showed the group UNANSWERED (a target exists,
+    // nothing selected). It is the only honest line
+    // between a selection the USER made and one the
+    // FORM rendered: a selection present in the very
+    // first view of the group — before the group was
+    // ever seen open — predates any interaction this
+    // walk could have witnessed, while a selection
+    // that appears after an open sighting is a hand
+    // at work. Only a correctDefault machine (the
+    // payment pick — see fillFtc) may act on that
+    // distinction; every other machine keeps the
+    // original rule untouched.
+    var sawOpen = false;
     return {
       step: function (view, now) {
         if (state === "done" || state === "failed" ||
@@ -1017,7 +1176,29 @@
           state = "user";
           return null;
         }
-        if (view.otherSelected) { state = "user"; return null; }
+        if (view.otherSelected) {
+          // v1.0.76: a correctDefault machine facing a
+          // group it has NEVER seen unanswered treats
+          // the standing selection as the form's own
+          // rendered default, not the user's answer,
+          // and drives the target with the same
+          // retry-until-verified discipline as any
+          // other pick. Once the group has been seen
+          // open, a selection is the user's hand —
+          // stand down forever, exactly as before.
+          if (cfg.correctDefault && !sawOpen && view.tile) {
+            if (engagedAt === null) engagedAt = now;
+            if (now - engagedAt >= windowMs) {
+              state = "failed";
+              return null;
+            }
+            state = "trying";
+            return "click";
+          }
+          state = "user";
+          return null;
+        }
+        if (view.tile) sawOpen = true;
         if (engagedAt === null) engagedAt = now;
         if (now - engagedAt >= windowMs) {
           state = "failed";
@@ -1043,6 +1224,620 @@
           return failedLine;
         return plainLine;
       }
+    };
+  }
+
+  /* v1.0.74 (queued-ftc-guided-picks.md + queued-ftc-
+   * question-autopicks.md, Michael's calls Nov 23 2026):
+   * the QUESTION-step auto-picks. For a standard spam/phish
+   * report launched from a message, three more of the
+   * wizard's answers are known true before the user ever
+   * sees the questions, and Michael directed the filler to
+   * make them: the payment question ("Did you send the
+   * scammer payment of any kind?") is No — the report is
+   * about a message that arrived, not a payment that left;
+   * how it started is Email — the report was launched from
+   * an email; and on the details step, three of the four
+   * spam checkboxes (the first two and the last — never
+   * the third). A radio question is the category pick's
+   * exact shape — one target option, other options the
+   * user's own hand might take first — so both question
+   * pickers ARE makeCategoryAutoPick machines, differing
+   * only in their lines (config) and in the DOM scan that
+   * feeds them (fillFtc's scanQuestionView). Every rule
+   * carries over untouched: retry-until-verified inside
+   * the same ~5-second window, same-breath verification
+   * before any claim, stand-down forever for the user's
+   * own selections, and a guide line that only states
+   * what the machine proved. The payment picker's plain
+   * line retires the old G_PAY parenthetical ("Only you
+   * can answer this one.") for the auto-pick case — the
+   * filler answers this one now; the sextortion path,
+   * which never builds these pickers, keeps the coaching
+   * line exactly as it was (see fillFtc). */
+  var SA_FTC_PAY_NO = {
+    plain: "If you didn't pay them anything, pick No.",
+    picked: "I selected 'No' for you \u2014 you didn't send " +
+      "them any payment.",
+    failed: "I tried to select 'No' for you and " +
+      "couldn't \u2014 please click it."
+  };
+  var SA_FTC_START_EMAIL = {
+    plain: "This came by email \u2014 pick Email.",
+    picked: "I selected 'Email' for you \u2014 this came " +
+      "by email.",
+    failed: "I tried to select 'Email' for you and " +
+      "couldn't \u2014 please click it."
+  };
+
+  /* v1.0.74: the spam-checkbox picker — PURE, like the
+   * category machine, but multi-target: the details step's
+   * spam group is FOUR boxes and Michael's ruling checks
+   * three of them (the first two and the last, in the
+   * group's own order); the third is never touched. The
+   * watcher feeds one view per pass ({ boxes: [checked x4]
+   * } in DOM order, or null while the group isn't on
+   * screen) and step() answers the indexes to click this
+   * pass. Same discipline as the single-target machine:
+   * a click counts only when it verifies checked in the
+   * same breath (afterClick); ANY box found checked that
+   * we didn't click-verify — the third included — means
+   * the user is answering this group themselves, and the
+   * picker stands down for good and never overrides them;
+   * the window is the same ~5 seconds, and expiry with
+   * targets unverified is "failed" (the boxes simply stay
+   * coaching-only, like every step the filler can't
+   * prove). */
+  var SPAM_BOX_TARGETS = [0, 1, 3];
+  function makeSpamBoxesPick(windowMs) {
+    var state = "waiting"; // waiting | trying | done | failed | user
+    var engagedAt = null;
+    var verified = {}; // index -> true (click-verified)
+    // v1.0.76: the target indexes ride in the view
+    // (the DOM scan identifies them from the group's
+    // REAL label texts — see spamBoxTargets) and latch
+    // on the first stepped view that carries them; a
+    // view without targets gets the positional ruling
+    // (the first two and the last of four).
+    var targets = null;
+    function allVerified() {
+      var t = targets || SPAM_BOX_TARGETS;
+      for (var j = 0; j < t.length; j++) {
+        if (!verified[t[j]]) return false;
+      }
+      return true;
+    }
+    return {
+      step: function (view, now) {
+        if (state === "done" || state === "failed" ||
+            state === "user") return [];
+        var boxes = view && view.boxes;
+        if (!boxes) return [];
+        if (!targets) {
+          targets = (view.targets && view.targets.length)
+            ? view.targets.slice() : SPAM_BOX_TARGETS.slice();
+        }
+        for (var k = 0; k < boxes.length; k++) {
+          if (boxes[k] && !verified[k]) {
+            state = "user";
+            return [];
+          }
+        }
+        if (allVerified()) { state = "done"; return []; }
+        if (engagedAt === null) engagedAt = now;
+        if (now - engagedAt >= windowMs) {
+          state = "failed";
+          return [];
+        }
+        state = "trying";
+        return targets.filter(function (i) {
+          return !boxes[i] && !verified[i];
+        });
+      },
+      afterClick: function (idx, checkedNow) {
+        if (checkedNow && state === "trying") {
+          verified[idx] = true;
+          if (allVerified()) state = "done";
+        }
+      },
+      getState: function () { return state; }
+    };
+  }
+
+  /* v1.0.76: spamBoxTargets(labels) — PURE: which of
+   * the experience group's boxes are Michael's three,
+   * judged by the labels' REAL texts. v1.0.74's DOM
+   * scan collected a box only when its label mentioned
+   * "spam" — a pattern written from Michael's spoken
+   * paraphrase of the group ("I am getting spam I
+   * cannot opt out of receiving") — but on the live
+   * form only two of the four labels contain the word:
+   *   1. "I am getting spam e-mails and I want them
+   *      to stop"
+   *   2. "I cannot opt out of receiving e-mails from
+   *      this company"
+   *   3. "I received an e-mail that displayed
+   *      pornographic images"
+   *   4. "I received a spam e-mail with a missing or
+   *      misleading subject line or from address"
+   * The scan therefore gathered two boxes, the
+   * exactly-four guard rejected the group, and the
+   * picker was never fed (Michael's field test,
+   * Nov 23 2026: all four boxes sat unchecked). The
+   * ruling is now textual, not positional: the
+   * pornographic box is identified by its own words
+   * and excluded; the other three are the targets
+   * when at least two of them also match their own
+   * positive patterns (getting-spam, opt-out,
+   * misleading-subject) — elimination plus positive
+   * confirmation. Anything less certain yields null
+   * and the caller falls back to the positional
+   * ruling only when no pornographic label is
+   * present to be endangered by it. */
+  function spamBoxTargets(labels) {
+    if (!labels || labels.length !== 4) return null;
+    var never = -1;
+    for (var i = 0; i < labels.length; i++) {
+      if (/pornographic/i.test(labels[i] || "")) {
+        if (never !== -1) return null;
+        never = i;
+      }
+    }
+    if (never === -1) return null;
+    var targets = [];
+    var positives = 0;
+    for (var j = 0; j < labels.length; j++) {
+      if (j === never) continue;
+      targets.push(j);
+      var t = labels[j] || "";
+      if (/getting spam|want them to stop/i.test(t) ||
+          /cannot opt out|can'?t opt out/i.test(t) ||
+          /missing or misleading subject/i.test(t)) {
+        positives++;
+      }
+    }
+    return positives >= 2 ? targets : null;
+  }
+
+  /* v1.0.75: the question scans' scoping brain — PURE,
+   * like the machines above. v1.0.74's DOM scan bound a
+   * question's target by climbing from its heading to
+   * the first ancestor holding two or more radio inputs
+   * and taking the first option inside it whose label
+   * matched. On the FTC's real "Report details" step
+   * several questions share one page and one wrapper, so
+   * the climb landed in the SHARED container, the first
+   * "No" inside it belonged to the earlier "fix a
+   * problem" question, the picker clicked that radio,
+   * the same-breath check verified the WRONG element,
+   * and the guide claimed the payment pick while the
+   * payment group itself sat untouched (Michael's field
+   * test, Nov 23 2026: payment ended on Yes, and "How
+   * did it start" — a <select>, not radios — sat on its
+   * placeholder). These functions take a flat item list
+   * in document order — headings, radios, selects, each
+   * a plain descriptor the DOM scan builds (element
+   * refs ride along and are ignored here) — and answer
+   * in indexes into that same list, so the scoping is
+   * provable without a DOM:
+   *
+   * ftcQuestionView(items, questionRe, optionRe): a
+   * question's options are the radios in its REGION —
+   * after its heading, before the next question
+   * heading — narrowed to the first region radio's name
+   * group (native radios in one group share a name,
+   * and a name group can never span two questions).
+   * The view's tile is the optionRe radio IN THAT
+   * GROUP; otherSelected is another radio OF THAT
+   * GROUP checked; target is the item index to click.
+   * A question absent from the page yields null; a
+   * question with no radios in its region yields
+   * groupCount 0, and the caller may fall back to tile
+   * shapes in an exclusive container, or just coach.
+   *
+   * ftcSelectView(items, questionRe, optionRe): finds
+   * the select carrying the question's label and reads
+   * it in the same view language — tile.selected when
+   * the target option is already chosen, otherSelected
+   * when a real non-target option is chosen (the
+   * user's own hand; the machine stands down), and
+   * targetValue = the value to set while the select
+   * still shows its placeholder. index is the item to
+   * drive. No such select yields null. */
+  function ftcQuestionView(items, questionRe, optionRe) {
+    var h = -1;
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].kind === "heading" &&
+          questionRe.test(items[i].text || "")) {
+        h = i;
+        break;
+      }
+    }
+    var start, end;
+    if (h !== -1) {
+      start = h + 1;
+      end = items.length;
+      for (var j = h + 1; j < items.length; j++) {
+        if (items[j].kind === "heading") { end = j; break; }
+      }
+    } else {
+      // v1.0.76: no heading item carries the question —
+      // its text may live in an element the item scan
+      // doesn't promote to a heading. Fall back to the
+      // radios' own group label (the fieldset legend /
+      // radiogroup aria text the DOM scan records on
+      // each radio): the region runs from the first
+      // radio of the matching group to the next
+      // heading or the first radio of a different
+      // labelled group. This is the same association
+      // the select path succeeds through (the control's
+      // own label), instead of a second dependence on
+      // heading-shaped markup.
+      var r = -1;
+      for (var g = 0; g < items.length; g++) {
+        if (items[g].kind === "radio" &&
+            items[g].group &&
+            questionRe.test(items[g].group)) {
+          r = g;
+          break;
+        }
+      }
+      if (r === -1) return null;
+      start = r;
+      end = items.length;
+      for (var e = r + 1; e < items.length; e++) {
+        if (items[e].kind === "heading") { end = e; break; }
+        if (items[e].kind === "radio" &&
+            items[e].group &&
+            items[e].group !== items[r].group) {
+          end = e;
+          break;
+        }
+      }
+    }
+    var region = [];
+    for (var k = start; k < end; k++) {
+      if (items[k].kind === "radio") region.push(k);
+    }
+    var group = region;
+    if (region.length && items[region[0]].name) {
+      var nm = items[region[0]].name;
+      group = [];
+      for (var m = 0; m < items.length; m++) {
+        if (items[m].kind === "radio" &&
+            items[m].name === nm) group.push(m);
+      }
+    }
+    var view = { tile: null, target: null,
+      otherSelected: false, groupCount: group.length };
+    for (var n = 0; n < group.length; n++) {
+      var it = items[group[n]];
+      if (optionRe.test(it.label || "")) {
+        if (view.target === null) {
+          view.target = group[n];
+          view.tile = { selected: !!it.checked };
+        } else if (it.checked) {
+          view.tile.selected = true;
+        }
+      } else if (it.checked) {
+        view.otherSelected = true;
+      }
+    }
+    return view;
+  }
+  function ftcSelectView(items, questionRe, optionRe) {
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      if (it.kind !== "select") continue;
+      if (!questionRe.test(it.label || "")) continue;
+      var view = { tile: null, targetValue: null,
+        otherSelected: false, index: i };
+      var selText = String(it.selectedText || "")
+        .replace(/\s+/g, " ").trim();
+      if (optionRe.test(selText)) {
+        view.tile = { selected: true };
+        return view;
+      }
+      view.tile = { selected: false };
+      var placeholder = !selText ||
+        /^select\b/i.test(selText) || !it.value;
+      if (!placeholder) {
+        // A real option that isn't the target: the
+        // user's own answer. The machine stands down.
+        view.otherSelected = true;
+        return view;
+      }
+      var opts = it.options || [];
+      for (var j = 0; j < opts.length; j++) {
+        if (optionRe.test(opts[j].text || "")) {
+          view.targetValue = opts[j].value;
+          break;
+        }
+      }
+      return view;
+    }
+    return null;
+  }
+
+  /* v1.0.74: the two details-step FILLS (not picks — text
+   * answers, filled the setNativeValue way and verified by
+   * reading the field back, in fillFtc). Their value
+   * derivations are pure and live here with the machines:
+   *
+   * claimedCompany(stash): who the message CLAIMS to be —
+   * the From display name, which on an impersonation spam
+   * is the impersonated company ("Louis Vuitton <mjf@…>"
+   * claims Louis Vuitton). A bare-address From names
+   * nobody and yields "" — the scammer-details company
+   * box then stays blank, exactly as it does today.
+   *
+   * encounterDateParts(stash): the reported message's own
+   * date (the panel stashes it since v1.0.74), split for
+   * the wizard's date box in both shapes a date field
+   * takes: ISO for a type=date input, US for a text input.
+   * An absent or unparseable date yields null and the box
+   * is left alone — the filler never guesses a date. */
+  function claimedCompany(stash) {
+    var from = String((stash && stash.from) || "");
+    var m = from.match(/^\s*"?([^"<@]+?)"?\s*<[^>]+>\s*$/);
+    if (!m) return "";
+    var name = m[1].replace(/\s+/g, " ").trim();
+    if (name.length < 2 || name.length > 60) return "";
+    return name;
+  }
+  function encounterDateParts(stash) {
+    var raw = (stash && stash.date) || "";
+    if (!raw) return null;
+    var d = new Date(raw);
+    if (isNaN(d.getTime())) return null;
+    function p2(n) { return (n < 10 ? "0" : "") + n; }
+    var yyyy = String(d.getFullYear());
+    var mm = p2(d.getMonth() + 1);
+    var dd = p2(d.getDate());
+    return { yyyy: yyyy, mm: mm, dd: dd,
+      iso: yyyy + "-" + mm + "-" + dd,
+      us: mm + "/" + dd + "/" + yyyy };
+  }
+
+  /* v1.0.78: the GoDaddy fill plan — PURE, like the
+   * machines above. godaddyPlan(stash, reporterEmail)
+   * answers, for each of the walked form's four fillable
+   * boxes, the value the filler will write — or null,
+   * with the reason the box must stay empty:
+   *   email: the reporter's saved address (the PID lane's
+   *     sa_user_email — the caller reads storage and
+   *     passes it in; this segment never touches
+   *     storage). A value that isn't address-shaped is
+   *     no address at all: null, "nosaved". An address
+   *     is NEVER invented.
+   *   brand: who the message claims to be. The stash's
+   *     godaddy payload carries the lib's "brand" slice
+   *     (the same derivation as claimedCompany above);
+   *     claimedCompany is the fallback when a payload
+   *     lacks one. A bare-address From names nobody:
+   *     null, "nobrand".
+   *   urls: the message's links one per line, with the
+   *     reported domain riding on its own line when no
+   *     link already names it (godaddyUrlText). No links
+   *     and no domain: null, "nolinks".
+   *   description: the payload's registrarDescription
+   *     text. No payload, no fill: null, "nodesc" — the
+   *     guide points at the panel's copy box rather than
+   *     substituting another lane's narrative.
+   * The mobile checkbox and the country select are not
+   * in the plan at all: the filler leaves them exactly
+   * as the form presents them (the v1.0.77 walk's
+   * ruling).
+   *
+   * godaddyOutcomeLines(plan, outcomes) — PURE: the
+   * guide pane's lines from the plan and what the fill
+   * pass found. Each outcome is "filled" (written and
+   * verified), "already" (the box already held the
+   * user's own text — left untouched), "wiped" (the
+   * form wouldn't keep the value), "notfound" (no such
+   * box on the page), or "skipped" (the plan had
+   * nothing for it). */
+  function godaddyUrlText(stash) {
+    var payload = (stash && stash.godaddy) || {};
+    var domain = String(payload.domain || "")
+      .replace(/\s+/g, "").toLowerCase();
+    var lines = [];
+    var urls = (stash && stash.urls) || [];
+    for (var i = 0; i < urls.length && lines.length < 10;
+         i++) {
+      var u = String(urls[i] || "").trim();
+      if (u) lines.push(u);
+    }
+    if (domain) {
+      var named = false;
+      for (var j = 0; j < lines.length; j++) {
+        var host = lines[j].replace(/^https?:\/\//i, "")
+          .split(/[\/?#]/)[0].toLowerCase();
+        if (host === domain ||
+            host.slice(-(domain.length + 1)) ===
+              "." + domain ||
+            lines[j].toLowerCase() === domain) {
+          named = true;
+          break;
+        }
+      }
+      if (!named) lines.push(domain);
+    }
+    return lines.join("\n");
+  }
+  function godaddyPlan(stash, reporterEmail) {
+    var payload = (stash && stash.godaddy) || {};
+    var plan = {};
+    var em = String(reporterEmail || "").trim();
+    plan.email = {
+      value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)
+        ? em : null,
+      why: null
+    };
+    if (!plan.email.value) plan.email.why = "nosaved";
+    var brand = String(payload.brand ||
+      claimedCompany(stash || {})).trim();
+    plan.brand = { value: brand || null, why: null };
+    if (!plan.brand.value) plan.brand.why = "nobrand";
+    var urlText = godaddyUrlText(stash || {});
+    plan.urls = { value: urlText || null, why: null };
+    if (!plan.urls.value) plan.urls.why = "nolinks";
+    var desc = String(payload.description || "").trim();
+    plan.description = { value: desc || null, why: null };
+    if (!plan.description.value) {
+      plan.description.why = "nodesc";
+    }
+    return plan;
+  }
+  function godaddyOutcomeLines(plan, outcomes) {
+    var NAMES = {
+      email: "your email address",
+      brand: "the impersonated brand",
+      urls: "the links",
+      description: "the description"
+    };
+    var ORDER = ["email", "brand", "urls", "description"];
+    function joinNames(keys) {
+      var ns = keys.map(function (k) { return NAMES[k]; });
+      if (ns.length <= 1) return ns.join("");
+      return ns.slice(0, -1).join(", ") + " and " +
+        ns[ns.length - 1];
+    }
+    function bare(k) {
+      return NAMES[k].replace(/^the /, "");
+    }
+    var filled = [], already = [], notes = [];
+    ORDER.forEach(function (k) {
+      if (outcomes[k] === "filled") filled.push(k);
+      else if (outcomes[k] === "already") {
+        already.push(k);
+      }
+    });
+    var allMissing = ORDER.every(function (k) {
+      return outcomes[k] === "notfound";
+    });
+    if (allMissing) {
+      return {
+        lead: "\u26A0 I couldn't fill this form in.",
+        sub1: "The form didn't load the way I " +
+          "expected \u2014 the panel in Gmail has copy " +
+          "boxes for every field, if you'd rather " +
+          "paste them in.",
+        sub2: ""
+      };
+    }
+    ORDER.forEach(function (k) {
+      var o = outcomes[k];
+      if (o === "skipped") {
+        if (k === "email") {
+          notes.push("The email box is still empty " +
+            "\u2014 I don't have an address saved for " +
+            "you, and I never invent one. The address " +
+            "you report under goes there.");
+        } else if (k === "brand") {
+          notes.push("The brand box is empty \u2014 the " +
+            "message claimed no company name, so it's " +
+            "yours to fill from the message.");
+        } else if (k === "urls") {
+          notes.push("The link box is empty \u2014 this " +
+            "message carried no links I could find.");
+        } else if (k === "description") {
+          notes.push("The description box is empty " +
+            "\u2014 the report text is in the copy box " +
+            "in the Gmail panel.");
+        }
+      } else if (o === "notfound") {
+        notes.push("I couldn't find the " + bare(k) +
+          " box \u2014 the form may have changed; its " +
+          "copy is in the panel in Gmail.");
+      } else if (o === "wiped") {
+        notes.push("The form wouldn't keep what I " +
+          "wrote in the " + bare(k) + " box \u2014 its " +
+          "copy is in the panel in Gmail.");
+      }
+    });
+    var lead;
+    if (filled.length) {
+      lead = "\u2713 I filled in the GoDaddy form for " +
+        "you \u2014 " + joinNames(filled) + ".";
+      if (already.length) {
+        lead += " " + joinNames(already) +
+          " already held your text, so I left " +
+          (already.length > 1 ? "them" : "it") +
+          " alone.";
+      }
+    } else if (already.length) {
+      lead = "The form already had " +
+        joinNames(already) +
+        " \u2014 I left your text alone.";
+    } else {
+      lead = "\u26A0 I couldn't fill this form in.";
+    }
+    return {
+      lead: lead,
+      sub1: notes.join(" "),
+      sub2: (filled.length || already.length)
+        ? "Give it a quick review, then click Submit " +
+          "when you're ready \u2014 I never submit " +
+          "for you."
+        : ""
+    };
+  }
+
+  /* v1.0.79: GoDaddy's confirmation + the hero lines —
+   * PURE, like the plan above. godaddyConfirmation(text)
+   * answers whether the page text is GoDaddy's
+   * submission-complete state and which DCU tickets it
+   * carries: the trigger is the wording Michael's live
+   * test showed (Nov 23 2026) — the "Submission Complete"
+   * heading and/or the sentence "Your abuse report has
+   * been successfully submitted" — either one alone is
+   * enough, exactly as the page pairs them. The DCU
+   * numbers (the "DCU Ticket Numbers:" list, one per
+   * reported URL, the bare domain included) are collected
+   * in page order, duplicates dropped: a number the page
+   * repeats is still one ticket. Nothing else on the
+   * form page — its labels, its buttons, or this pane's
+   * own fill lines — carries either trigger phrase.
+   *
+   * godaddyHeroLines(conf) — PURE: the hero finish's
+   * three lines. A finish line, not an instruction block:
+   * the checkmark headline, the ticket count when the
+   * numbers parsed (a plain acceptance line when they
+   * didn't), and a closing line. No line tells the user
+   * to press anything — by the time these show, there is
+   * nothing left to press. */
+  function godaddyConfirmation(text) {
+    var t = String(text || "");
+    var confirmed = /submission complete/i.test(t) ||
+      /abuse report has been successfully submitted/i.test(t);
+    if (!confirmed) {
+      return { confirmed: false, tickets: [], count: 0 };
+    }
+    var seen = {}, tickets = [];
+    var re = /DCU\d+/g, m;
+    while ((m = re.exec(t)) !== null) {
+      if (!seen[m[0]]) { seen[m[0]] = true; tickets.push(m[0]); }
+    }
+    return { confirmed: true, tickets: tickets,
+      count: tickets.length };
+  }
+  function godaddyHeroLines(conf) {
+    var count = (conf && conf.count) || 0;
+    var sub1;
+    if (count === 1) {
+      sub1 = "GoDaddy opened 1 DCU ticket for your report.";
+    } else if (count > 1) {
+      sub1 = "GoDaddy opened " + count + " DCU tickets " +
+        "for your report \u2014 one for each link and the " +
+        "domain itself.";
+    } else {
+      sub1 = "GoDaddy accepted your abuse report.";
+    }
+    return {
+      lead: "\u2713 Filed with GoDaddy",
+      sub1: sub1,
+      sub2: "All done \u2014 you can close this tab."
     };
   }
 
@@ -1110,6 +1905,51 @@
         (s === "done" ? "picked" : "stood down") +
         " \u2014 state=" + s);
     }
+
+    /* v1.0.74 (queued-ftc-guided-picks.md): the question
+     * auto-picks — the payment No and the how-it-started
+     * Email (category machines with question configs), the
+     * spam-checkbox picker, and the two details-step fills'
+     * states. SCOPE GATE (the spec's hard rule): NONE of
+     * these exist on the sextortion path — a sextortion
+     * report can involve a real payment, so the payment
+     * answer is never presumed there; the path keeps its
+     * coaching lines and its own something-else picker,
+     * untouched. */
+    /* v1.0.76: the payment picker is built with
+     * correctDefault (see makeCategoryAutoPick): for a
+     * report launched from a message, "no payment was
+     * sent" is known true, so a Yes the FORM rendered
+     * before the walk ever saw the group unanswered is
+     * a default to correct, not an answer to respect.
+     * A selection appearing after an open sighting is
+     * still the user's hand and stands the picker down
+     * for good. */
+    function newPayPick() {
+      var cfg = {};
+      for (var key in SA_FTC_PAY_NO) cfg[key] = SA_FTC_PAY_NO[key];
+      cfg.correctDefault = true;
+      return makeCategoryAutoPick(CAT_PICK_WINDOW_MS, cfg);
+    }
+    var payPick = stash.sextortion ? null : newPayPick();
+    var startPick = stash.sextortion ? null
+      : makeCategoryAutoPick(CAT_PICK_WINDOW_MS,
+          SA_FTC_START_EMAIL);
+    var spamPick = stash.sextortion ? null
+      : makeSpamBoxesPick(CAT_PICK_WINDOW_MS);
+    var dateFillState = "waiting"; // waiting | done | user
+    var companyFillState = "waiting"; // waiting | done | user
+    var pickLogged = {};
+    function logPickTerminal(name, picker) {
+      if (!picker || pickLogged[name] === picker) return;
+      var s = picker.getState();
+      if (s !== "done" && s !== "failed" && s !== "user")
+        return;
+      pickLogged[name] = picker;
+      Diag.debug("FTC wizard: " + name + " auto-pick " +
+        (s === "done" ? "picked" : "stood down") +
+        " \u2014 state=" + s);
+    }
     var startedAt = Date.now();
     var deadline = startedAt + 10 * 60 * 1000; // pre-fill hunt cap
     // v1.0.43: the watch used to END at the fill. It doesn't
@@ -1160,9 +2000,21 @@
     // fallback state.
     var G_CAT_OTHER = "Pick 'Something else' \u2014 this one isn't " +
       "impersonating anybody.";
-    var G_START = "This came by email \u2014 pick Email.";
-    var G_PAY = "If you didn't pay them anything, pick No. " +
-      "(Only you can answer this one.)";
+    /* v1.0.74: on the standard path these two lines are the
+     * question pickers' own guide lines (plain before the
+     * pick verifies, "I selected … for you" after, tried-
+     * and-couldn't if the window expires) — the pickers
+     * answer these two questions now, so the "(Only you
+     * can answer this one.)" parenthetical is retired
+     * here. The sextortion path has no pickers and keeps
+     * both coaching lines exactly as they were. */
+    var G_START = stash.sextortion
+      ? "This came by email \u2014 pick Email."
+      : startPick.guideLine();
+    var G_PAY = stash.sextortion
+      ? "If you didn't pay them anything, pick No. " +
+        "(Only you can answer this one.)"
+      : payPick.guideLine();
     var G_DETAILS = "Keep clicking Continue \u2014 I'll drop " +
       "your case details into the big box when it shows up.";
     // v1.0.43: the review step gets its own line, pre- and
@@ -1391,6 +2243,537 @@
       }
       return view;
     }
+
+    /* v1.0.75: the question scans — the payment and
+     * how-it-started questions, group-scoped. The pure
+     * ftcQuestionView/ftcSelectView (above) do the
+     * scoping; this layer only builds their item list
+     * from the live page and carries out their answers.
+     * scanQuestionItems walks the page once, in document
+     * order, emitting: question headings (heading-ish
+     * elements whose text is question-like — long enough
+     * and carrying a "?"), native radios (each resolved
+     * to its label for the words and its name for the
+     * group), and selects (label, options, current
+     * choice). A label only claims a radio when its
+     * title is option-short (the ≤40-char convention): a
+     * long label is a question heading that happens to
+     * point at a control, never an option's name.
+     * scanQuestionView reads the view out of the item
+     * list; only when a question's region holds NO
+     * native radios does it fall back to the tile scan,
+     * and then only inside an EXCLUSIVE container —
+     * questionContainer now refuses any container that
+     * also holds another question's heading, because a
+     * bigger ancestor would hold it too (that shared
+     * wrapper was the v1.0.74 trap). A question whose
+     * options render in some other shape simply yields
+     * no target — the machine waits out its window and
+     * the step stays coaching-only, like every step the
+     * filler can't prove. */
+    function scanQuestionItems() {
+      var items = [];
+      function norm(s) {
+        return String(s || "").replace(/\s+/g, " ").trim();
+      }
+      function questionLike(t) {
+        return t.length >= 12 && t.indexOf("?") !== -1;
+      }
+      function labelControl(lab) {
+        var inp = lab.control || (lab.querySelector
+          ? lab.querySelector("input[type='radio']")
+          : null);
+        if (!inp && lab.htmlFor) {
+          try {
+            var ref = document.getElementById(lab.htmlFor);
+            if (ref && ref.type === "radio") inp = ref;
+          } catch (e) {}
+        }
+        return inp;
+      }
+      // Map each radio input to its label element first:
+      // USWDS puts the input and its label side by side
+      // in either order, and the label carries the words.
+      var labelOf = new Map();
+      var usedLabels = [];
+      var labels = document.querySelectorAll("label");
+      for (var li = 0; li < labels.length; li++) {
+        var inp0 = labelControl(labels[li]);
+        if (inp0 && !labelOf.has(inp0) &&
+            tileTitle(labels[li]).length <= 40) {
+          labelOf.set(inp0, labels[li]);
+          usedLabels.push(labels[li]);
+        }
+      }
+      var els = document.querySelectorAll(
+        "h1, h2, h3, h4, legend, label, " +
+        "input[type='radio'], select");
+      var seen = [];
+      for (var i = 0; i < els.length; i++) {
+        var el = els[i];
+        if (el.tagName === "SELECT") {
+          if (!isVisible(el)) continue;
+          var opts = [];
+          for (var o = 0; o < el.options.length; o++) {
+            opts.push({
+              text: norm(el.options[o].textContent),
+              value: el.options[o].value });
+          }
+          var selOpt = el.options[el.selectedIndex];
+          items.push({ kind: "select",
+            label: norm(controlLabel(el)),
+            options: opts,
+            selectedText: selOpt
+              ? norm(selOpt.textContent) : "",
+            value: el.value, el: el });
+          continue;
+        }
+        if (el.tagName === "INPUT") {
+          if (seen.indexOf(el) !== -1) continue;
+          seen.push(el);
+          var labEl = labelOf.get(el) || null;
+          if (labEl && !isVisible(labEl)) continue;
+          // v1.0.76: the radio's GROUP label — the
+          // question as the form itself associates it
+          // with the control (fieldset legend, or the
+          // radiogroup wrapper's aria label). Recorded
+          // on every radio so ftcQuestionView can scope
+          // a group even when the question's text never
+          // surfaces as a heading item.
+          var grp = "";
+          var fs = el.closest &&
+            el.closest("fieldset, [role='radiogroup']");
+          if (fs) {
+            var lg = fs.querySelector &&
+              fs.querySelector("legend");
+            if (lg) grp = norm(lg.textContent);
+            if (!grp && fs.getAttribute) {
+              var alb = fs.getAttribute("aria-labelledby");
+              if (alb) {
+                try {
+                  var gref = document.getElementById(
+                    alb.split(/\s+/)[0]);
+                  if (gref) grp = norm(gref.textContent);
+                } catch (e) {}
+              }
+              if (!grp) {
+                grp = norm(fs.getAttribute("aria-label") || "");
+              }
+            }
+          }
+          items.push({ kind: "radio",
+            name: el.name || "",
+            group: grp,
+            label: labEl ? tileTitle(labEl)
+              : norm(el.getAttribute("aria-label") || ""),
+            checked: !!el.checked,
+            el: labEl || el, input: el });
+          continue;
+        }
+        // Heading-ish elements and labels: a label that
+        // claimed a radio was already emitted with it;
+        // anything else counts only as a question
+        // heading, by its words.
+        if (usedLabels.indexOf(el) !== -1) continue;
+        if (!isVisible(el)) continue;
+        var t = norm(el.textContent);
+        if (questionLike(t)) {
+          items.push({ kind: "heading", text: t, el: el });
+        }
+      }
+      return items;
+    }
+    function foreignQuestion(box, ownHead) {
+      var heads = box.querySelectorAll(
+        "h1, h2, h3, h4, legend, label");
+      for (var i = 0; i < heads.length; i++) {
+        if (heads[i] === ownHead) continue;
+        var t = (heads[i].textContent || "")
+          .replace(/\s+/g, " ").trim();
+        if (t.length >= 12 && t.indexOf("?") !== -1) {
+          return true;
+        }
+      }
+      return false;
+    }
+    function questionContainer(questionRe) {
+      var heads = document.querySelectorAll(
+        "h1, h2, h3, h4, legend, label");
+      for (var i = 0; i < heads.length; i++) {
+        if (!isVisible(heads[i])) continue;
+        var t = (heads[i].textContent || "")
+          .replace(/\s+/g, " ").trim();
+        if (!questionRe.test(t)) continue;
+        var node = heads[i];
+        for (var up = 0; up < 5 && node; up++) {
+          var inputs = node.querySelectorAll
+            ? node.querySelectorAll(
+                "input[type='radio'], input[type='checkbox']")
+            : [];
+          if (inputs.length >= 2) {
+            // v1.0.75: never hand back a container that
+            // also holds another question's heading —
+            // climbing higher only holds it too, so the
+            // honest answer is no container at all.
+            return foreignQuestion(node, heads[i])
+              ? null : node;
+          }
+          node = node.parentElement;
+        }
+        return null;
+      }
+      return null;
+    }
+    function scanQuestionView(questionRe, optionRe) {
+      var view = { tile: null, tileEl: null,
+        tileInput: null, otherSelected: false };
+      var items = scanQuestionItems();
+      var res = ftcQuestionView(items, questionRe,
+        optionRe);
+      if (res) {
+        view.tile = res.tile;
+        view.otherSelected = res.otherSelected;
+        if (res.target !== null) {
+          view.tileEl = items[res.target].el;
+          view.tileInput = items[res.target].input;
+        }
+        if (res.groupCount > 0) return view;
+      }
+      // No native radios in the question's region: the
+      // tile-shaped fallback, in an exclusive container
+      // only (see questionContainer's v1.0.75 guard).
+      var box = questionContainer(questionRe);
+      if (!box) return view;
+      var els = box.querySelectorAll(
+        "button, a, label, [role='radio'], [role='option']");
+      for (var i = 0; i < els.length; i++) {
+        var el = els[i];
+        if (!isVisible(el)) continue;
+        var title = tileTitle(el);
+        if (title && title.length <= 40 &&
+            optionRe.test(title)) {
+          if (!view.tile) {
+            view.tile = { selected: tileSelected(el) };
+            view.tileEl = el;
+          } else if (tileSelected(el)) {
+            view.tile.selected = true;
+          }
+        } else if (!view.otherSelected &&
+            tileIsRadioLike(el) && tileSelected(el)) {
+          view.otherSelected = true;
+        }
+      }
+      return view;
+    }
+    function runRadioPick(picker, questionRe, optionRe,
+        applyLine) {
+      var view = scanQuestionView(questionRe, optionRe);
+      // Stepped even with no target in view: the question
+      // is up (the caller gated on its text) and the
+      // option may render late — the machine's window
+      // covers exactly that case.
+      var action = picker.step(view, Date.now());
+      if (action === "click" && view.tileEl) {
+        try { view.tileEl.click(); } catch (e) {}
+        // v1.0.75: verify against the target group's own
+        // input when the scan resolved one. v1.0.74
+        // verified the clicked element's selected look,
+        // which is exactly how a click on the WRONG
+        // group's "No" passed its same-breath check.
+        // v1.0.76: verify against a FRESH scan of the
+        // group first — a framework that re-renders on
+        // click replaces the input node, and the
+        // captured node's checked state can lag or lie
+        // about the live group. The captured input
+        // remains the fallback when the fresh scan
+        // finds no tile to read.
+        var fresh = scanQuestionView(questionRe, optionRe);
+        picker.afterClick(fresh.tile
+          ? !!fresh.tile.selected
+          : (view.tileInput
+            ? !!view.tileInput.checked
+            : tileSelected(view.tileEl)));
+        Diag.debug("FTC wizard: question auto-pick " +
+          "clicked; state=" + picker.getState());
+      }
+      applyLine(picker.guideLine());
+    }
+
+    /* v1.0.75: the how-it-started pick — the real form
+     * renders this question as a <select> (placeholder
+     * "Select", Email among the options), which the
+     * radio picker hunted in vain through all of
+     * v1.0.74. When a select carries the question's
+     * label, drive IT: setNativeValue to the Email
+     * option, then verify the selection stuck by
+     * reading the select back, through the same picker
+     * machine and the same stand-down rules (a real
+     * non-Email choice is the user's own hand). When no
+     * select carries the label, fall back to the radio
+     * pick — a rendering that uses radios gets exactly
+     * the v1.0.74 help, now group-scoped. */
+    function runStartPick() {
+      var questionRe = /how did it start|how did they contact|how were you contacted/i;
+      var optionRe = /^e-?mail$/i;
+      var items = scanQuestionItems();
+      var res = ftcSelectView(items, questionRe, optionRe);
+      if (!res) {
+        runRadioPick(startPick, questionRe, optionRe,
+          function (line) { G_START = line; });
+        logPickTerminal("started", startPick);
+        return;
+      }
+      var view = { tile: res.tile,
+        otherSelected: res.otherSelected };
+      var action = startPick.step(view, Date.now());
+      if (action === "click" &&
+          res.targetValue !== null) {
+        var sel = items[res.index].el;
+        try {
+          setNativeValue(sel, res.targetValue);
+        } catch (e) {}
+        var opt = sel.options[sel.selectedIndex];
+        startPick.afterClick(!!opt && optionRe.test(
+          (opt.textContent || "")
+            .replace(/\s+/g, " ").trim()));
+        Diag.debug("FTC wizard: started auto-pick set " +
+          "the select; state=" + startPick.getState());
+      }
+      G_START = startPick.guideLine();
+      logPickTerminal("started", startPick);
+    }
+
+    /* v1.0.74: the spam-checkbox scan — the details step's
+     * four spam boxes, in DOM order. Anything short of
+     * exactly four is not the group Michael ruled on, and
+     * the picker is never fed a partial or foreign group.
+     * v1.0.76: the group is found by its HEADING ("Did
+     * you experience any of the following?") and the
+     * targets are identified by the boxes' REAL label
+     * texts (spamBoxTargets). v1.0.74 collected a box
+     * only when its label mentioned "spam" — but on the
+     * live form only two of the four labels do (the
+     * opt-out and pornographic boxes never say the
+     * word), so the scan gathered two boxes, the
+     * exactly-four guard rejected the group, and the
+     * picker was never fed at all. */
+    function experienceScope() {
+      var heads = document.querySelectorAll(
+        "h1, h2, h3, h4, legend, label, [class*='label']");
+      for (var i = 0; i < heads.length; i++) {
+        var hd = heads[i];
+        if (!isVisible(hd)) continue;
+        var t = (hd.textContent || "")
+          .replace(/\s+/g, " ").trim();
+        if (!/did you experience any of the following/i
+            .test(t)) continue;
+        var fs = hd.closest && hd.closest("fieldset");
+        if (fs) return fs;
+        var node = hd;
+        for (var up = 0; up < 6 && node; up++) {
+          node = node.parentElement;
+          if (!node || !node.querySelectorAll) break;
+          if (node.querySelectorAll(
+              "input[type='checkbox']").length >= 4) {
+            return node;
+          }
+        }
+        return null;
+      }
+      return null;
+    }
+    function scanSpamBoxes() {
+      function norm(s) {
+        return String(s || "").replace(/\s+/g, " ").trim();
+      }
+      var all = [];
+      var inputs = document.querySelectorAll(
+        "input[type='checkbox']");
+      for (var i = 0; i < inputs.length; i++) {
+        var inp = inputs[i];
+        var lab = null;
+        if (inp.id) {
+          try {
+            lab = document.querySelector(
+              'label[for="' + inp.id + '"]');
+          } catch (e) {}
+        }
+        if (!lab && inp.closest) lab = inp.closest("label");
+        if (lab && !isVisible(lab)) continue;
+        all.push({ el: lab || inp, input: inp,
+          label: lab ? norm(lab.textContent)
+            : norm(inp.getAttribute("aria-label") || ""),
+          checked: !!inp.checked });
+      }
+      var group = null;
+      var scope = experienceScope();
+      if (scope) {
+        group = all.filter(function (b) {
+          return scope.contains(b.input);
+        });
+      }
+      if (!group || group.length !== 4) {
+        var union = all.filter(function (b) {
+          return /spam|opt out|pornographic|misleading/i
+            .test(b.label);
+        });
+        group = union.length === 4 ? union : null;
+      }
+      if (!group) return null;
+      var labels = group.map(function (b) { return b.label; });
+      var targets = spamBoxTargets(labels);
+      if (!targets) {
+        // Positional fallback (the first two and the
+        // last) — only when no pornographic label rides
+        // in the group to be endangered by position.
+        for (var p = 0; p < labels.length; p++) {
+          if (/pornographic/i.test(labels[p])) return null;
+        }
+        targets = [0, 1, 3];
+      }
+      return { boxes: group, targets: targets };
+    }
+    function runSpamBoxes() {
+      if (!spamPick) return;
+      var found = scanSpamBoxes();
+      if (!found) return;
+      var boxes = found.boxes;
+      var view = { boxes: boxes.map(function (b) {
+        return b.checked;
+      }), targets: found.targets };
+      var toClick = spamPick.step(view, Date.now());
+      for (var i = 0; i < toClick.length; i++) {
+        var idx = toClick[i];
+        try { boxes[idx].el.click(); } catch (e) {}
+        spamPick.afterClick(idx,
+          !!boxes[idx].input.checked ||
+            tileSelected(boxes[idx].el));
+      }
+      if (toClick.length) {
+        Diag.debug("FTC wizard: spam-box auto-pick " +
+          "clicked " + toClick.join(",") + "; state=" +
+          spamPick.getState());
+      }
+      logPickTerminal("spam-boxes", spamPick);
+    }
+
+    /* v1.0.74: the details-step fills. findLabeledInput is
+     * the narrative hunt's discipline narrowed to ONE
+     * control: the first visible text-ish control whose
+     * label (controlLabel's walk) matches. It is only ever
+     * called with the encounter-date and claimed-company
+     * patterns — the reporter's own-details section (name,
+     * email, age, military status) is never searched for,
+     * never filled: Michael weighed pre-filling it from
+     * the addon's saved identity and reversed it Nov 23
+     * 2026 ("don't bother"). A fill writes through
+     * setNativeValue and counts only when the value reads
+     * back; a box the user already answered is theirs and
+     * is never overwritten. */
+    function findLabeledInput(labelRe) {
+      var inputs = document.querySelectorAll(
+        "input, select, textarea");
+      for (var i = 0; i < inputs.length; i++) {
+        var el = inputs[i];
+        if (!isVisible(el)) continue;
+        if (el.tagName === "INPUT" &&
+            (el.type === "hidden" || el.type === "radio" ||
+             el.type === "checkbox" ||
+             el.type === "submit" || el.type === "button" ||
+             el.type === "file")) continue;
+        if (labelRe.test(controlLabel(el))) return el;
+      }
+      return null;
+    }
+    function runDetailFills() {
+      if (dateFillState === "waiting") {
+        var parts = encounterDateParts(stash);
+        if (parts) {
+          var dEl = findLabeledInput(
+            /when did you encounter|encounter the scam/i);
+          if (dEl) {
+            var want = dEl.type === "date"
+              ? parts.iso : parts.us;
+            var cur = String(dEl.value || "").trim();
+            if (cur === want) {
+              dateFillState = "done";
+            } else if (cur) {
+              dateFillState = "user";
+            } else {
+              setNativeValue(dEl, want);
+              if (String(dEl.value || "").trim() === want) {
+                dateFillState = "done";
+                Diag.debug("FTC wizard: encounter date " +
+                  "filled \u2014 " + want);
+              }
+            }
+          }
+        }
+      }
+      if (companyFillState === "waiting") {
+        var company = claimedCompany(stash);
+        if (company) {
+          var cEl = findLabeledInput(
+            /pretend|impersonat|company or organization/i);
+          if (cEl) {
+            var curC = String(cEl.value || "").trim();
+            if (curC === company) {
+              companyFillState = "done";
+            } else if (curC) {
+              companyFillState = "user";
+            } else {
+              setNativeValue(cEl, company);
+              if (String(cEl.value || "").trim() ===
+                  company) {
+                companyFillState = "done";
+                Diag.debug("FTC wizard: claimed company " +
+                  "filled \u2014 " + company);
+              }
+            }
+          }
+        }
+      }
+    }
+    /* v1.0.76: the question picks and the details fills
+     * as one step, callable from BOTH watch modes.
+     * v1.0.74 ran them only inside the pre-fill pass,
+     * immediately before the narrative fill — but the
+     * narrative lives on the SAME composite "Report
+     * details" page as the questions, so the fill
+     * landed in the very pass that first stepped the
+     * pickers, the watch flipped to post-fill mode, and
+     * the pickers' ~5-second retry window collapsed
+     * into a single scan: any first-pass miss (a
+     * half-rendered step, a group the scan couldn't
+     * scope yet, a default the machine stood down for)
+     * was permanent for the whole walk. The post-fill
+     * pass now keeps stepping them while the composite
+     * page is up (see postFillPass), restoring the
+     * window the machines were designed around. Each
+     * piece still self-gates on its step's own signals,
+     * exactly as in the pre-fill pass. */
+    function runQuestionPicks() {
+      var qText = guideScanText();
+      if (!wizardStarted(qText)) return;
+      if (payPick &&
+          /did you send|did you pay|payment of any kind|how much money/i
+            .test(qText)) {
+        runRadioPick(payPick,
+          /did you send|payment of any kind/i, /^no$/i,
+          function (line) { G_PAY = line; });
+        logPickTerminal("payment", payPick);
+      }
+      if (startPick &&
+          /how did it start|how did they contact|how were you contacted/i
+            .test(qText)) {
+        // The started pick drives the question's
+        // <select> when it has one (the real form
+        // does), falling back to radios.
+        runStartPick();
+      }
+      runSpamBoxes();
+      runDetailFills();
+    }
     // Has the wizard actually started? Its telltales: the
     // "common problems" category heading, or a visible Continue
     // button (every wizard step carries one). Until one of those
@@ -1597,6 +2980,21 @@
         stopAll();
         return;
       }
+      // v1.0.76: the composite "Report details" page
+      // holds its questions next to its Comments box —
+      // keep stepping the question pickers there, so
+      // they get their full retry window instead of the
+      // single pre-fill pass (see runQuestionPicks).
+      // The discriminator is the v1.0.45 one: the
+      // composite page always carries its <textarea>
+      // node, while a standalone questions page and the
+      // review step (which repeats the question text)
+      // carry none — the picks can never fire there.
+      if (!stash.sextortion && payPick &&
+          document.querySelector("textarea") &&
+          QUESTION_RE.test(t)) {
+        runQuestionPicks();
+      }
       if (box) {
         if (!box.value && savedNarrative) {
           // The wizard wiped the box while the user was off on
@@ -1643,6 +3041,21 @@
         elsePick = makeCategoryAutoPick(CAT_PICK_WINDOW_MS,
           SA_FTC_CAT_SOMETHING_ELSE);
         G_CAT_OTHER = elsePick.guideLine();
+        // v1.0.74: the question pickers and the details
+        // fills re-arm on the same reset, for the same
+        // reason — the new walk gets the same help as any
+        // fresh walk (standard path only; a sextortion
+        // stash never built them and doesn't start now).
+        if (!stash.sextortion) {
+          payPick = newPayPick();
+          G_PAY = payPick.guideLine();
+          startPick = makeCategoryAutoPick(
+            CAT_PICK_WINDOW_MS, SA_FTC_START_EMAIL);
+          G_START = startPick.guideLine();
+          spamPick = makeSpamBoxesPick(CAT_PICK_WINDOW_MS);
+          dateFillState = "waiting";
+          companyFillState = "waiting";
+        }
         deadline = Date.now() + 10 * 60 * 1000;
         Diag.debug("FTC wizard: restart detected \u2014 back " +
           "to guide mode");
@@ -1787,6 +3200,29 @@
         }
       }
 
+      // v1.0.74 (queued-ftc-guided-picks.md): the question
+      // auto-picks and the details-step fills, on the
+      // standard path only (the pickers don't exist for a
+      // sextortion stash — see their declarations). Runs
+      // BEFORE the narrative fill below on purpose: the
+      // narrative fill ends the pre-fill watch, so the
+      // details step's own picks and fills (the spam
+      // boxes, the encounter date, the claimed company)
+      // must land on this same pass. Each piece self-gates
+      // on its step's own signals, exactly like the
+      // category pick: the radio pickers step only while
+      // their question's text is up; the box picker only
+      // ever sees a group of exactly four; the fills only
+      // ever touch their two labeled boxes.
+      // v1.0.76: "this same pass" proved to be the trap
+      // — one pass is one scan, and a miss was forever.
+      // The step is extracted (runQuestionPicks) and the
+      // post-fill pass keeps stepping it while the
+      // composite details page is up.
+      if (!stash.sextortion) {
+        runQuestionPicks();
+      }
+
       // The must-have: when the wizard reaches its narrative/details
       // step, fill the textarea with the case summary.
       var areas = document.querySelectorAll("textarea");
@@ -1833,5 +3269,196 @@
     });
     attempt(); // the step might already be on screen
     setTimeout(stopAll, 15 * 60 * 1000); // the ~15-min total cap
+  }
+
+  /* ---------------- GoDaddy phishing form ---------------- */
+
+  // v1.0.78: the fill pass for legalportal.godaddy.com's
+  // phishing report — a plain web form, walked live Nov 23
+  // 2026. Four boxes are filled, found by their labels (the
+  // same findField/controlLabel machinery the other lanes
+  // use): "Your Email Address", "Company or Brand Being
+  // Impersonated", "URL, Website, or Domain", "Description
+  // of Issue". The "Was this viewed from a mobile device?"
+  // checkbox and the country select are never queried and
+  // never touched — they stay exactly as the form presents
+  // them. A box that already holds text is the user's own:
+  // it is left alone and reported as such (the same
+  // stand-down the FTC detail fills keep). Every write goes
+  // through setVerified, so a value the form wipes is
+  // retried before it's called failed. The pass NEVER
+  // queries a button and never submits: the user reviews
+  // the filled form and clicks Submit themselves.
+
+  // v1.0.79: the page's visible text, collected the way
+  // the Safe Browsing watch learned to (v1.0.62): a
+  // heading/paragraph census PLUS the rendered body text,
+  // because GoDaddy's confirmation — heading, thank-you
+  // and the DCU list — is div/span markup the census alone
+  // can miss. The matcher only tests phrases and DCU
+  // numbers, so overlap between the two sources is fine.
+  function godaddyPageText() {
+    var parts = [];
+    var els = document.querySelectorAll("h1, h2, h3, h4, p");
+    for (var i = 0; i < els.length; i++) {
+      if (!isVisible(els[i])) continue;
+      var t = (els[i].textContent || "")
+        .replace(/\s+/g, " ").trim();
+      if (t) parts.push(t);
+    }
+    try {
+      var bt = document.body && document.body.innerText;
+      if (bt) {
+        var b = bt.replace(/\s+/g, " ").trim();
+        if (b) parts.push(b);
+      }
+    } catch (e) {}
+    return parts.join("\n");
+  }
+
+  // v1.0.79: the hero watch — the GoDaddy half of the
+  // other lanes' payoff. A MutationObserver plus a slow
+  // interval, capped at ~15 minutes like theirs: when
+  // GoDaddy's confirmation wording reaches the page (the
+  // user's own submit, however it navigates — a reload
+  // re-runs this script and the watch's first check sees
+  // the page as it stands), the pane swaps to the hero
+  // finish via Diag.hero() and the watch stands down.
+  // Re-armable: a call after the cap starts a fresh watch,
+  // so the fill pass's hand-off is never too late. It
+  // NEVER clicks anything: it only notices the report
+  // went through.
+  var gdHeroWatchStarted = false, gdHeroWatchDone = false;
+  function watchGoDaddyHero() {
+    if (gdHeroWatchStarted && !gdHeroWatchDone) return;
+    gdHeroWatchStarted = true;
+    gdHeroWatchDone = false;
+    var startedAt = Date.now();
+    var gdTimer = null;
+    var gdObserver = new MutationObserver(function () { check(); });
+    function stopGd() {
+      gdHeroWatchDone = true;
+      try { gdObserver.disconnect(); } catch (e) {}
+      if (gdTimer) { clearInterval(gdTimer); gdTimer = null; }
+    }
+    function check() {
+      if (gdHeroWatchDone) return;
+      if (Date.now() - startedAt > 15 * 60 * 1000) {
+        Diag.debug("GoDaddy: hero watch cap reached \u2014 " +
+          "standing down");
+        stopGd();
+        return;
+      }
+      var conf = godaddyConfirmation(godaddyPageText());
+      if (conf.confirmed) {
+        Diag.hero(godaddyHeroLines(conf));
+        Diag.debug("GoDaddy: confirmation detected \u2014 " +
+          "hero flash shown (" + conf.count +
+          " DCU tickets)");
+        stopGd();
+      }
+    }
+    try {
+      gdObserver.observe(document.documentElement, {
+        childList: true, subtree: true
+      });
+    } catch (e) {}
+    gdTimer = setInterval(check, 1000);
+    check();
+  }
+
+  function fillGoDaddy(stash, reporterEmail) {
+    // v1.0.79: a confirmation already on screen means the
+    // report is filed — no fill and no fill copy; the hero
+    // watch owns the pane from here.
+    if (godaddyConfirmation(godaddyPageText()).confirmed) {
+      Diag.debug("GoDaddy: confirmation on screen at fill " +
+        "start \u2014 fill standing down");
+      watchGoDaddyHero();
+      return;
+    }
+    var plan = godaddyPlan(stash, reporterEmail);
+    var FIELDS = [
+      { key: "email", tags: "input",
+        re: /your email/i },
+      { key: "brand", tags: "input",
+        re: /impersonat/i },
+      { key: "urls", tags: "textarea",
+        re: /url, website, or domain/i },
+      { key: "description", tags: "textarea",
+        re: /description of issue/i }
+    ];
+    Diag.set("lead", "Filling in the GoDaddy form from " +
+      "your email\u2026");
+    Diag.debug("GoDaddy: watching for the form\u2026");
+
+    var startedAt = Date.now();
+    var filling = false;
+    var timer = setInterval(function () {
+      if (filling) return;
+      // Proceed once every box the plan has a value for is
+      // on the page — or when the wait runs out, with
+      // whatever the page actually holds.
+      var ready = FIELDS.every(function (f) {
+        return !plan[f.key].value ||
+          !!findField(f.tags, f.re);
+      });
+      if (!ready && Date.now() - startedAt < 30000) return;
+      filling = true;
+      clearInterval(timer);
+      fillNext(0, {});
+    }, 450);
+
+    function fillNext(i, outcomes) {
+      if (i >= FIELDS.length) { finishFill(outcomes); return; }
+      var f = FIELDS[i];
+      if (!plan[f.key].value) {
+        outcomes[f.key] = "skipped";
+        Diag.debug("GoDaddy: " + f.key + " — nothing " +
+          "planned (" + (plan[f.key].why || "?") + ")");
+        fillNext(i + 1, outcomes);
+        return;
+      }
+      var el = findField(f.tags, f.re);
+      if (!el) {
+        outcomes[f.key] = "notfound";
+        Diag.debug("GoDaddy: " + f.key + " box not found");
+        fillNext(i + 1, outcomes);
+        return;
+      }
+      if (String(el.value || "").trim()) {
+        // The user's own text outranks the plan — always.
+        outcomes[f.key] = "already";
+        Diag.debug("GoDaddy: " + f.key + " already held " +
+          "text — left alone");
+        fillNext(i + 1, outcomes);
+        return;
+      }
+      setVerified(el, plan[f.key].value, function (ok) {
+        outcomes[f.key] = ok ? "filled" : "wiped";
+        Diag.debug("GoDaddy: " + f.key + " " +
+          (ok ? "filled + verified" : "would not stick"));
+        fillNext(i + 1, outcomes);
+      });
+    }
+
+    function finishFill(outcomes) {
+      var anyFilled = FIELDS.some(function (f) {
+        return outcomes[f.key] === "filled";
+      });
+      // The stash is single-use: erase it once a fill has
+      // landed, so a later visit to this form doesn't
+      // refill it from a stale case.
+      if (anyFilled) clearStash();
+      var lines = godaddyOutcomeLines(plan, outcomes);
+      Diag.set("lead", lines.lead);
+      Diag.set("sub1", lines.sub1);
+      Diag.set("sub2", lines.sub2);
+      Diag.debug("GoDaddy: fill pass done");
+      // v1.0.79: hand off to the hero watch — when
+      // GoDaddy's confirmation lands in this tab, the pane
+      // trades these fill lines for the hero finish.
+      watchGoDaddyHero();
+    }
   }
 })();

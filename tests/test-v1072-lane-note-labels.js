@@ -44,7 +44,7 @@ function count(hay, needle) {
   return hay.split(needle).length - 1;
 }
 
-ok("manifest version stays 1.0.72", manifest.version === "1.0.72",
+ok("manifest version stays 1.0.73", manifest.version === "1.0.74",
   "got " + manifest.version);
 
 // The sentences themselves are unchanged (the lib constants

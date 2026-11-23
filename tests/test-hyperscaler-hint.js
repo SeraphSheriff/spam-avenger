@@ -350,9 +350,23 @@ ok("kit form button: id, blue, copy+open label, copies evidence then opens the l
   kitSeg.indexOf('document.execCommand("copy")') !== -1 &&
   kitSeg.indexOf("navigator.clipboard.writeText(eta.value)") !== -1 &&
   kitSeg.indexOf('window.open(formLane.url, "_blank", "noopener")') !== -1);
-ok("kit has NO email UI (no compose, no complaint text, no textarea)",
+// v1.0.74 (queued-aws-email-lane.md, Michael's call
+// Nov 23 2026) supersedes the v1.0.64 "no email UI in the
+// kit" rule for ONE desk: AWS's form itself names an email
+// fallback (Trust & Safety), and Michael prefers that lane
+// — so the AWS kit, and only the AWS kit, gains an email
+// door under the form steps. The pin narrows accordingly:
+// the kit's only email UI is that door, it lives behind
+// the lane's emailTo flag, and the general email lane
+// (compose id, complaint box, heading) stays out of the
+// kit segment entirely. The door's own pins live in
+// tests/test-v1074-form-lanes.js.
+ok("kit email UI is ONLY the AWS email door (v1.0.74): " +
+   "guarded by the lane's emailTo, no general email lane",
+  kitSeg.indexOf("formLane.emailTo") !== -1 &&
+  kitSeg.indexOf("Open in Gmail") >
+    kitSeg.indexOf("formLane.emailTo") &&
   kitSeg.indexOf("sf-compose") === -1 &&
-  kitSeg.indexOf("Open in Gmail") === -1 &&
   kitSeg.indexOf("Ready-to-send complaint") === -1 &&
   kitSeg.indexOf('"To: " + c.to') === -1 &&
   kitSeg.indexOf("sf-complaint-text") === -1 &&

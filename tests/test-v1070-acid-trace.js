@@ -66,10 +66,10 @@ function ok(name, cond, extra) {
 }
 
 // ---------- manifest: no version bump, no new hosts ----------
-ok("manifest version stays 1.0.72", manifest.version === "1.0.72",
+ok("manifest version stays 1.0.73", manifest.version === "1.0.74",
   "got " + manifest.version);
-ok("host_permissions = the v1.0.72 set of 14",
-  manifest.host_permissions.length === 14,
+ok("host_permissions = the set of 15 (the v1.0.72 set of 14 + v1.0.78's legalportal.godaddy.com)",
+  manifest.host_permissions.length === 15,
   "got " + manifest.host_permissions.length);
 ok("host_permissions include rdap.org",
   manifest.host_permissions.some(function (h) {

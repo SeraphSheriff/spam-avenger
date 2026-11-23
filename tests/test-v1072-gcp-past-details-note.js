@@ -39,8 +39,8 @@ const SENTENCE = "Google may offer details from your earlier " +
   "use them or ignore them.";
 
 // ---------- manifest ----------
-ok("manifest version is 1.0.72 (combined build)",
-  manifest.version === "1.0.72", "got " + manifest.version);
+ok("manifest version is 1.0.73 (combined build)",
+  manifest.version === "1.0.74", "got " + manifest.version);
 
 // ---------- the shipped lane table (extracted verbatim) ----------
 const m = contentSrc.match(/var HYPER_FORM_HINTS = (\{[\s\S]*?\n  \});/);

@@ -90,13 +90,13 @@ function ok(name, cond, extra) {
 }
 
 // ---------- manifest: version bumped, NOTHING else grew ----------
-ok("manifest version is 1.0.72", manifest.version === "1.0.72",
+ok("manifest version is 1.0.73", manifest.version === "1.0.74",
   "got " + manifest.version);
 ok("permissions unchanged: storage only",
   JSON.stringify(manifest.permissions) === JSON.stringify(["storage"]));
-ok("host permissions = the v1.0.72 set of 14 (1.0.65 set + crt.sh + site-check wildcards, deliberate)",
+ok("host permissions = the set of 15 (the v1.0.72 set of 14 + v1.0.78's legalportal.godaddy.com, deliberate — the GoDaddy filler's page)",
   Array.isArray(manifest.host_permissions) &&
-  manifest.host_permissions.length === 14);
+  manifest.host_permissions.length === 15);
 
 // ---------- extract the history helpers ----------
 const bMark = "// [sa-history-helpers-begin]";
@@ -723,17 +723,20 @@ ok("test5: compBtn handler — one shared `now` badges button + " +
 ok("test5: formBtn handler — one shared `now` badges button + " +
    "toggle after window.open",
   handlerSharesNow(formBtnIdx, 2400));
-ok("complaint recording lives ONLY in the two button handlers",
+ok("complaint recording lives ONLY in the button handlers " +
+   "(two at v1.0.66; v1.0.74 adds the third — the AWS " +
+   "email door's Open-in-Gmail button, a real launch of " +
+   "the same lane)",
   (contentSrc.match(/recordLaunched\("complaint"\)/g) || [])
-    .length === 2);
+    .length === 3);
 
 // ---------- test5: the label-swap hazard is structurally gone ----------
 ok("test5: neither complaint button's whole textContent is " +
    "written anywhere anymore",
   contentSrc.indexOf("formBtn.textContent") === -1 &&
   contentSrc.indexOf("compBtn.textContent") === -1);
-ok("test5: both complaint labels live in .sf-btn-label spans (v1.0.70: back to two — the third span carried the Azure kit's copy-details label, retired with the v1.0.69 single-block kit; public 1.0.72: four more spans — the website and registrar buttons, both shapes, carry them under the launched-stamp parity fix; the link-host stamp fix adds its two buttons' spans, eight in total)",
-  (contentSrc.match(/"class": "sf-btn-label"/g) || []).length === 8 &&
+ok("test5: both complaint labels live in .sf-btn-label spans (v1.0.70: back to two — the third span carried the Azure kit's copy-details label, retired with the v1.0.69 single-block kit; public 1.0.72: four more spans — the website and registrar buttons, both shapes, carry them under the launched-stamp parity fix; the link-host stamp fix adds its two buttons' spans, eight in total; v1.0.74: the AWS email door's button carries the ninth)",
+  (contentSrc.match(/"class": "sf-btn-label"/g) || []).length === 9 &&
   contentSrc.indexOf("var formBtnLabel = ") !== -1 &&
   contentSrc.indexOf("var compBtnLabel = ") !== -1);
 ok("test5: the swaps write ONLY the label spans",

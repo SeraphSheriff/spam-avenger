@@ -30,11 +30,11 @@ function ok(name, cond, extra) {
   else { fail++; console.log("  FAIL " + name + (extra ? " — " + extra : "")); }
 }
 
-ok("manifest version stays 1.0.72", manifest.version === "1.0.72",
+ok("manifest version stays 1.0.73", manifest.version === "1.0.74",
   "got " + manifest.version);
 ok("no new permissions", JSON.stringify(manifest.permissions) ===
   JSON.stringify(["storage"]));
-ok("host permissions = the v1.0.72 set of 14", manifest.host_permissions.length === 14);
+ok("host permissions = the set of 15 (the v1.0.72 set of 14 + v1.0.78's legalportal.godaddy.com)", manifest.host_permissions.length === 15);
 
 // ---------- history helpers: the new lanes record + load ----------
 const bMark = "// [sa-history-helpers-begin]";

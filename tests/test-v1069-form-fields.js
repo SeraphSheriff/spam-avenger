@@ -52,13 +52,13 @@ function ok(name, cond, extra) {
 }
 
 // ---------- manifest: this build is 1.0.72 ----------
-ok("manifest version is 1.0.72 (combined build)",
-  manifest.version === "1.0.72", "got " + manifest.version);
+ok("manifest version is 1.0.73 (combined build)",
+  manifest.version === "1.0.74", "got " + manifest.version);
 ok("permissions unchanged: storage only",
   JSON.stringify(manifest.permissions) === JSON.stringify(["storage"]));
-ok("host permissions = the v1.0.72 set of 14 (deliberate: crt.sh + site-check wildcards)",
+ok("host permissions = the set of 15 (the v1.0.72 set of 14 + v1.0.78's legalportal.godaddy.com, deliberate)",
   Array.isArray(manifest.host_permissions) &&
-  manifest.host_permissions.length === 14);
+  manifest.host_permissions.length === 15);
 ok("buildFormFieldEvidence is exported",
   typeof analyze.buildFormFieldEvidence === "function");
 
@@ -132,19 +132,26 @@ ok("each step names the form's box and its copy button names it too",
   kitSeg.indexOf('"Copy for the " + fld.box + " field"') !== -1);
 ok("a step whose slice cannot be built is skipped, not shown empty",
   kitSeg.indexOf("if (fld.copy && !fTxt) return;") !== -1);
-ok("field copy buttons are copy-only: the kit still has exactly one form opener",
-  (kitSeg.match(/window\.open\(/g) || []).length === 1 &&
+ok("field copy buttons are copy-only: no opener inside the " +
+   "fields block; the kit's two window.opens are the form " +
+   "button and v1.0.74's AWS email door (a Gmail compose)",
+  (kitSeg.match(/window\.open\(/g) || []).length === 2 &&
+  kitSeg.slice(kitSeg.indexOf("if (formLane.fields"),
+      kitSeg.indexOf("if (formLane.emailTo)"))
+    .indexOf("window.open(") === -1 &&
   kitSeg.indexOf("formLane.fields") <
     kitSeg.length); // render exists; opener count pinned above
 ok("field copies record no launch (nothing is filed until the user submits)",
-  kitSeg.slice(kitSeg.indexOf("if (formLane.fields"))
+  kitSeg.slice(kitSeg.indexOf("if (formLane.fields"),
+      kitSeg.indexOf("if (formLane.emailTo)"))
     .indexOf("recordLaunched") === -1);
-ok(".sf-btn-label spans: 8 (v1.0.70: back to 2 — the Azure " +
+ok(".sf-btn-label spans: 9 (v1.0.70: back to 2 — the Azure " +
    "copy-details span retired; public 1.0.72: the website " +
    "and registrar buttons gained spans under the launched-" +
    "stamp parity fix, so their badges survive the label swaps; " +
-   "the link-host stamp fix adds its two buttons' spans)",
-  (contentSrc.match(/"class": "sf-btn-label"/g) || []).length === 8);
+   "the link-host stamp fix adds its two buttons' spans; " +
+   "v1.0.74: the AWS email door's button carries the ninth)",
+  (contentSrc.match(/"class": "sf-btn-label"/g) || []).length === 9);
 
 // ---------- lib: the slices ----------
 // One spam fixture, three forms. Modeled on the real

@@ -43,7 +43,7 @@ function count(hay, needle) {
   return hay.split(needle).length - 1;
 }
 
-ok("manifest version stays 1.0.72", manifest.version === "1.0.72",
+ok("manifest version stays 1.0.73", manifest.version === "1.0.74",
   "got " + manifest.version);
 
 // ---------- recipientOf / analyze().recipient ----------
@@ -139,8 +139,10 @@ ok("content: one hint factory, marker class sf-sendas-hint",
   contentSrc.indexOf('"sf-fine sf-sendas-hint"') !== -1 &&
   contentSrc.indexOf("sendAsHintText(sendAsAddr, what)") !== -1);
 ok("content: the hint rides the four bare-call lanes " +
-   "(mail host, website host, link host, registrar)",
-  count(contentSrc, "= sendAsHintEl();") === 4,
+   "(mail host, website host, link host, registrar) plus " +
+   "v1.0.74's fifth — the AWS email door inside the mail " +
+   "kit, an email lane like the other four",
+  count(contentSrc, "= sendAsHintEl();") === 5,
   "got " + count(contentSrc, "= sendAsHintEl();"));
 ok("content: the PID lane calls it with 'letter'",
   count(contentSrc, 'sendAsHintEl("letter")') === 1);

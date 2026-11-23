@@ -47,7 +47,7 @@ function count(hay, needle) {
   return hay.split(needle).length - 1;
 }
 
-ok("manifest version stays 1.0.72", manifest.version === "1.0.72",
+ok("manifest version stays 1.0.73", manifest.version === "1.0.74",
   "got " + manifest.version);
 
 // ---------- parity: registrations and pushes ----------
@@ -69,11 +69,13 @@ ok("parity: no single-target registration remains for either lane",
   contentSrc.indexOf("badgeTargets.website = { el:") === -1);
 ok("parity: the domain-lane buttons carry label spans (four " +
   "at the parity fix; public 1.0.72's link-host stamp fix " +
-  "adds its two — six domain-lane spans, eight in total)",
+  "adds its two — six domain-lane spans, eight in total; " +
+  "v1.0.74: the mail kit's AWS email-door button carries " +
+  "the ninth)",
   contentSrc.indexOf("var wFormBtnLabel = ") !== -1 &&
   contentSrc.indexOf("var rFormBtnLabel = ") !== -1 &&
   contentSrc.indexOf("var lFormBtnLabel = ") !== -1 &&
-  count(contentSrc, '"class": "sf-btn-label"') === 8);
+  count(contentSrc, '"class": "sf-btn-label"') === 9);
 ok("parity: the form buttons' swaps write only their label spans",
   contentSrc.indexOf("wFormBtn.textContent") === -1 &&
   contentSrc.indexOf("rFormBtn.textContent") === -1 &&

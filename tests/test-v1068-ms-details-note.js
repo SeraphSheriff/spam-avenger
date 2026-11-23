@@ -41,13 +41,13 @@ function ok(name, cond, extra) {
 }
 
 // ---------- manifest ----------
-ok("manifest version is 1.0.72", manifest.version === "1.0.72",
+ok("manifest version is 1.0.73", manifest.version === "1.0.74",
   "got " + manifest.version);
 ok("permissions unchanged: storage only",
   JSON.stringify(manifest.permissions) === JSON.stringify(["storage"]));
-ok("host permissions = the v1.0.72 set of 14 (dns.google already there)",
+ok("host permissions = the set of 15 (the v1.0.72 set of 14 + v1.0.78's legalportal.godaddy.com; dns.google already there)",
   Array.isArray(manifest.host_permissions) &&
-  manifest.host_permissions.length === 14 &&
+  manifest.host_permissions.length === 15 &&
   manifest.host_permissions.indexOf("https://dns.google/*") !== -1);
 
 // ---------- fixtures (same shapes as the v1067 suite) ----------

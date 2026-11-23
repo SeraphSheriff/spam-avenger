@@ -65,10 +65,24 @@
       // memory is Google's, not the addon's, before it
       // startles him. Google's kit only: the panel is a
       // Google Support feature.
+      // v1.0.74 (queued-google-form-signin-note.md,
+      // Michael's tap Nov 21 2026): one more startle of the
+      // same class, answered the same way — the page's
+      // header carries a "Sign in" button that reads like
+      // a developer login is required. It isn't: Michael
+      // filed the form signed out the same evening and
+      // Google emailed a "Verify your email now" link
+      // instead. The sentence sits just ahead of the
+      // past-details closer, so that line still closes the
+      // intro. Google's kit only, like the closer.
       fieldsIntro: "The form's first boxes are your name and " +
         "email address \u2014 those are yours to fill in, and " +
         "Spam Avenger never prepares them. The steps below " +
         "cover the form's evidence fields, one box at a time. " +
+        "Ignore the Sign in button at the top of Google's " +
+        "page \u2014 you don't need a Google account to file " +
+        "this. Google will email you a link to verify your " +
+        "address instead. " +
         "Google may offer details from your earlier reports " +
         "on the left side of this form. That's Google " +
         "remembering your past cases, not Spam Avenger " +
@@ -126,7 +140,67 @@
             "specific URLs. These are un-defanged, exactly " +
             "as they appeared \u2014 a URL box needs the " +
             "literal addresses.",
-          copy: "urls" } ] },
+          copy: "urls" } ],
+      // v1.0.73 (queued-guided-form-fields.md): the same
+      // form, walked for the LINK-host report \u2014 the kit
+      // above covers a sender on AWS; these cover a site
+      // AWS hosts that the spam advertises (the form fields
+      // Michael's own link-host filing used on Nov 21 2026).
+      // The form's front door separates reports about an
+      // email resource from reports about a hosted resource;
+      // a link report takes the hosted door. If the form
+      // will not take the report at all, AWS's abuse desk
+      // also reads email \u2014 trustandsafety@support.aws.com
+      // \u2014 and the intro below says so on the panel.
+      linkPick: "Front door: this report is about a site " +
+        "AWS hosts, not about mail AWS sent \u2014 take the " +
+        "hosted-resource door if the form offers one. For " +
+        "the abuse type, the substance is \u201chosting a " +
+        "site advertised in spam\u201d; the form has no " +
+        "exact choice for that (and \u201cPhishing\u201d " +
+        "fits only when the page itself harvests " +
+        "credentials), so pick the closest website-abuse " +
+        "wording it offers.",
+      linkFieldsIntro: "Same form as the sender report " +
+        "above, different facts \u2014 these steps are for " +
+        "the hosted site. If the form won't take the " +
+        "report, the same facts can be emailed to " +
+        "trustandsafety@support.aws.com instead.",
+      linkFields: [
+        { box: "Complete email header and body",
+          help: "The whole message in one paste \u2014 for a " +
+            "report that arrived by email, the form wants " +
+            "the header and the body together.",
+          copy: "headersBody" },
+        { box: "URL of abusive email content",
+          help: "The advertised page's address, exactly " +
+            "as it appeared \u2014 un-defanged, like the " +
+            "sender report's URL box.",
+          copy: "urls" },
+        { box: "Comments",
+          help: "What this report is, in the hosting " +
+            "frame: the site is hosted by AWS and was " +
+            "advertised in spam. The form caps this box " +
+            "at 10,000 characters; the text below fits.",
+          copy: "linkComment" } ],
+      // v1.0.74 (queued-aws-email-lane.md, Michael's call
+      // Nov 23 2026): the email door, restored for THIS
+      // desk only. AWS's own form names an email fallback
+      // for people who can't use the form — its Trust &
+      // Safety desk, the same address the v1.0.73 link kit
+      // above already names in its intro — and Michael
+      // filed by email himself that morning and prefers
+      // the lane. So the mail kit below the form steps
+      // offers the complaint by email too: the same
+      // complaint the lib built (subject and body, full
+      // sample riding in the body as on every email kit),
+      // addressed to this desk, opened in Gmail in one
+      // click. The form lane above stays exactly as it
+      // was — this is an ADDITIONAL door, not a swap, and
+      // no other form lane gains one: their desks deflect
+      // email by policy, which is why they are form kits
+      // at all.
+      emailTo: "trustandsafety@support.aws.com" },
     azure: { label: "Microsoft Azure",
       // The MSRC URL carries its picks with it —
       // ThreatType=IpAddress + IncidentType=Spam pre-picked
@@ -668,6 +742,13 @@
       saRecordLaunched(saStorageLocal(), key, lane, Date.now());
     } catch (e) {}
     saRecordSighting(lane);
+    // v1.0.73 (queued-icann-escalation.md): a registrar
+    // launch also lays down the report record the ICANN
+    // escalation trigger counts — one per (registrar,
+    // domain), earliest standing.
+    if (lane === "registrar") {
+      try { saWriteRegistrarReport(); } catch (e) {}
+    }
   }
 
   // v1.0.72: repeat-offender memory — sightings. Where the
@@ -675,7 +756,9 @@
   // about this email), sightings are keyed by SENDER (what
   // have I reported about this IP / domain, across every
   // message): origin IP, From domain, date, the desk the lane
-  // aimed at, and the action. They live in the extension's own
+  // aimed at, and the action. v1.0.73 adds the message key, so
+  // the count the lib reads back is distinct reports, not
+  // lane launches. They live in the extension's own
   // chrome.storage.local under one key — never cookies, never
   // storage.sync, nothing leaves the machine — pruned to the
   // newest 500 by lib pruneSightings. A sighting is written
@@ -686,6 +769,81 @@
   // store is wiped (uninstall, a manual data clear), the
   // history simply resets and nothing else breaks.
   var SA_SIGHTINGS_KEY = "saSightings";
+
+  // v1.0.73 (queued-icann-escalation.md): the registrar
+  // report records the ICANN escalation counts, and its
+  // dismissal memory. Same store, same rules as sightings:
+  // chrome.storage.local only, nothing leaves the machine.
+  // A record is { registrar (the lib's key), registrarName,
+  // registrarAbuse, domain, registered, ip, host, ts } —
+  // written when
+  // the registrar lane launches, deduped per (registrar,
+  // domain) with the earliest report standing, because the
+  // trigger's age test reads the oldest. The dismissal map
+  // is { registrarKey: countAtDismissal } — the offer stays
+  // parked until the registrar's count grows past it.
+  var SA_REGISTRAR_REPORTS_KEY = "saRegistrarReports";
+  var SA_ICANN_DISMISSED_KEY = "saIcannEscalationDismissed";
+  var ICANN_ESCALATION_URL =
+    "https://icann-nsp.my.site.com/compliance/s/abuse-domain";
+
+  function saWriteRegistrarReport() {
+    var a = sfCurrentAnalysis;
+    if (!a || !a.registrarInfo) return;
+    var SA = window.SpamAvenger;
+    if (!SA || !SA.icannRegistrarKey) return;
+    var key = SA.icannRegistrarKey(a.registrarInfo);
+    var domain = a.senderDomain || "";
+    if (!key || !domain) return;
+    var store = saStorageLocal();
+    if (!store) return;
+    store.get(SA_REGISTRAR_REPORTS_KEY, function (res) {
+      var list = (res && res[SA_REGISTRAR_REPORTS_KEY]) || [];
+      if (!Array.isArray(list)) list = [];
+      for (var i = 0; i < list.length; i++) {
+        if (list[i] && list[i].registrar === key &&
+            list[i].domain === domain) {
+          return; // already recorded — the earliest stands
+        }
+      }
+      list.push({
+        registrar: key,
+        registrarName: a.registrarInfo.registrar || "",
+        registrarAbuse: a.registrarInfo.registrarAbuse || "",
+        domain: domain,
+        registered: a.registrarInfo.registered || "",
+        ip: a.ip || "",
+        host: a.host || "",
+        ts: Date.now()
+      });
+      var payload = {};
+      payload[SA_REGISTRAR_REPORTS_KEY] = list;
+      store.set(payload, function () {});
+    });
+  }
+
+  // v1.0.73: download a text file the panel built (the
+  // ICANN kit's CSV + evidence). Same Blob + object-URL
+  // shape as any in-page download; the anchor is removed
+  // and the URL revoked once the click has landed. Never
+  // throws — a failed download leaves the form button's
+  // other half (the form open) still working.
+  function saDownloadText(filename, text) {
+    try {
+      var blob = new Blob([String(text || "")],
+        { type: "text/plain" });
+      var url = URL.createObjectURL(blob);
+      var link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(function () {
+        try { URL.revokeObjectURL(url); } catch (e) {}
+        try { link.remove(); } catch (e) {}
+      }, 4000);
+    } catch (e) {}
+  }
 
   // The analysis the panel is currently showing, captured at
   // render time — sightings and gating read the sender's IP /
@@ -720,23 +878,47 @@
 
   // Fire-and-forget sighting write. Every failure is
   // swallowed: repeat memory must never break or stall a lane.
+  // v1.0.73 (queued-repeat-counter-lane-launches.md): the
+  // sighting also carries the current message key (`msg`),
+  // and a REPORT sighting is skipped when this message
+  // already has one against the same sender (same msg + IP +
+  // domain) — one message worked through five lanes is one
+  // report, and the store should say so at write time too.
+  // (lib matchReports dedupes again at read time, which also
+  // covers records written before the key existed.)
   function saWriteSighting(action, desk) {
     try {
       var a = sfCurrentAnalysis;
       var store = saStorageLocal();
       if (!a || !store) return;
       var SA = window.SpamAvenger;
+      var msgKey = "";
+      try {
+        msgKey = sfCurrentMsgKey ||
+          saHistoryKey(null, currentMessageId()) || "";
+      } catch (e) {}
       var sighting = {
         ip: a.ip || "",
         domain: String(a.senderDomain || "").toLowerCase(),
         ts: Date.now(),
         desk: desk || "",
-        action: action || ""
+        action: action || "",
+        msg: msgKey
       };
       store.get(SA_SIGHTINGS_KEY, function (res) {
         try {
           var list = (res && Array.isArray(res[SA_SIGHTINGS_KEY]))
             ? res[SA_SIGHTINGS_KEY] : [];
+          if (sighting.action !== "analyzed" && sighting.msg) {
+            var dup = list.some(function (s) {
+              return s && s.action !== "analyzed" &&
+                s.msg === sighting.msg &&
+                String(s.ip || "") === sighting.ip &&
+                String(s.domain || "").toLowerCase() ===
+                  sighting.domain;
+            });
+            if (dup) return; // this message already reported it
+          }
           list.push(sighting);
           var payload = {};
           payload[SA_SIGHTINGS_KEY] = (SA && SA.pruneSightings)
@@ -1806,6 +1988,33 @@
         "has no video and no access to your device. " +
         "Don't pay."));
     }
+    // Public 1.0.73 release: the own-forward banner on the
+    // header-fetch SUCCESS path too (queued-own-forward-
+    // catch.md, Nov 21 2026 addendum). The catch built into
+    // 1.0.72 only fired when the header fetch FAILED; on the
+    // direitodoestado.com.br forward copy the fetch
+    // SUCCEEDED, so the panel rendered in full with no sign
+    // it was Michael's own APWG/CISA forward rather than
+    // the original spam. The verdict runs on the message
+    // the panel is anchored to — currentMessageId already
+    // prefers a non-self message in a mixed thread, so a
+    // banner here means the panel really is sitting on the
+    // forward copy. It renders beside the sextortion
+    // banner, above every lane; the lanes below stay live
+    // (the catch's job was never to block work, only to say
+    // plainly which message is open). Detection failure —
+    // the forward markers not expanded in the page — shows
+    // nothing: the safe direction, per the catch's rule
+    // that a false "this is yours" is worse than a miss.
+    try {
+      var owfEl = messageElById(currentMessageId());
+      if (owfEl && ownForwardOnPage(owfEl) &&
+          window.SpamAvenger.OWN_FORWARD_BANNER) {
+        body.appendChild(h("p",
+          { "class": "sf-warn sf-own-forward-banner" },
+          window.SpamAvenger.OWN_FORWARD_BANNER));
+      }
+    } catch (e) {}
     // v1.0.48: which button colors this render actually puts on
     // screen — the legend below is built from these flags, so it
     // never explains a color that isn't there.
@@ -2268,6 +2477,83 @@
           });
           kw.appendChild(fwrap);
         }
+        // v1.0.74 (queued-aws-email-lane.md, Michael's call
+        // Nov 23 2026): the email door, for the one form
+        // lane whose desk reads email — AWS Trust & Safety
+        // (see the hint's emailTo note). Only a lane
+        // carrying emailTo grows this block; today that is
+        // AWS alone, and the form kit above it is untouched.
+        // The shape is the registrar email lane's: the
+        // complaint in a box (To / Subject / body — the
+        // full sample rides in the body, as on every email
+        // kit), one green Open-in-Gmail button, the send-as
+        // hint, the paste-mode warning. The complaint is
+        // RETARGETED: the lane's own object (c) is addressed
+        // to whatever abuse contact the RDAP named, and
+        // this one must land on the Trust & Safety desk the
+        // hint names — same subject, same body, new To. The
+        // click runs fitGivenComplaint against the retargeted
+        // object (the fit the wired lanes use) and records
+        // a launch of this section's own lane, badged and
+        // status-lined exactly like the form button's click.
+        if (formLane.emailTo) {
+          var awsMail = { to: formLane.emailTo,
+            subject: c.subject, body: c.body };
+          kw.appendChild(h("b", null,
+            "Or email it instead \u2014 AWS Trust & Safety"));
+          kw.appendChild(h("p", { "class": "sf-note" },
+            "AWS also takes this report by email at " +
+            formLane.emailTo + " \u2014 the fallback its own " +
+            "form names for people who can't use the form. " +
+            "The complaint below is the same report, " +
+            "addressed to that desk; the button opens it " +
+            "in Gmail, ready to send. The form above stays " +
+            "available either way."));
+          var emTa = h("textarea",
+            { id: "sf-aws-email-text" });
+          emTa.readOnly = true;
+          emTa.value = "To: " + awsMail.to + "\nSubject: " +
+            awsMail.subject + "\n\n" + awsMail.body;
+          kw.appendChild(emTa);
+          var emBtnLabel = h("span",
+            { "class": "sf-btn-label" },
+            "Open in Gmail \u2014 just click Send");
+          var emBtn = h("button",
+            { id: "sf-aws-email-compose",
+              "class": "sf-btn-green" }, emBtnLabel);
+          badgeTargets.complaint.els.push(emBtn);
+          showGreen = true; // Open in Gmail (the email door)
+          var emSendAs = sendAsHintEl();
+          if (emSendAs) kw.appendChild(emSendAs);
+          var emPaste = pasteWarnEl(awsMail);
+          if (emPaste) kw.appendChild(emPaste);
+          kw.appendChild(
+            h("div", { "class": "sf-actions" }, emBtn));
+          emBtn.addEventListener("click", function () {
+            var plan = window.SpamAvenger.fitGivenComplaint(
+              accountIndex(), awsMail);
+            if (!plan) return;
+            if (plan.mode === "paste") {
+              if (navigator.clipboard) {
+                navigator.clipboard.writeText(
+                  plan.complaint.body).catch(function () {});
+              }
+              var origLabel = emBtnLabel.textContent;
+              emBtnLabel.textContent =
+                "Copied! Paste into the email (Ctrl+V), then Send";
+              setTimeout(function () {
+                emBtnLabel.textContent = origLabel;
+              }, 6000);
+            }
+            window.open(plan.url, "_blank", "noopener");
+            recordLaunched("complaint");
+            var now = Date.now();
+            if (complaintStatusEl) {
+              complaintStatusEl.textContent = saOpenedText(now);
+            }
+            applyLaunchedBadge("complaint", now);
+          });
+        }
         // v1.0.66: launched-status line for the complaint lane.
         complaintStatusEl = h("p", { "class": "sf-fine sf-status",
           "id": "sf-complaint-status" }, "");
@@ -2381,10 +2667,21 @@
       // group at the bottom of the stack (see
       // addBlockedNote), not appended where the lane would
       // have rendered.
+      // Public 1.0.73 release (queued-abuse-note-sb-
+      // reference.md): the Safe Browsing pointer sentence
+      // rides in its own span. Whether the SB lane will
+      // actually be on the panel isn't known at this first
+      // pass (the lane's final gating verdict lands in
+      // applyClassification), so the sentence is provisional:
+      // the final pass removes the span when no SB lane is
+      // visible, leaving the contact fact standing alone —
+      // a blocked note must never point at a lane that
+      // isn't there.
       addBlockedNote(h("p", { "class": "sf-warn" },
         h("b", null, "Abuse complaint:"), " " +
-        "No published abuse contact for this IP. " +
-        "Report the links below via Google Safe Browsing instead."));
+        "No published abuse contact for this IP. ",
+        h("span", { "class": "sf-abuse-sb-fallback" },
+          "Report the links below via Google Safe Browsing instead.")));
     } else if (a.skipComplaint) {
       addBlockedNote(h("p", { "class": "sf-warn" },
         h("b", null, "Abuse complaint:"), " " +
@@ -2791,7 +3088,8 @@
             "details are in the box below. The button copies " +
             "them to your clipboard and opens the " +
             lHint.label + " abuse form. " +
-            (lHint.pick ? lHint.pick + " " : "") +
+            ((lHint.linkPick || lHint.pick)
+              ? (lHint.linkPick || lHint.pick) + " " : "") +
             "On the form, paste into the details field — " +
             "Ctrl+V, or right-click and choose Paste — " +
             "then submit the form."));
@@ -2847,6 +3145,75 @@
           });
           lfw.appendChild(
             h("div", { "class": "sf-actions" }, lFormBtn));
+          // Public 1.0.73 release (queued-guided-form-
+          // fields.md): per-field steps for the link-host
+          // kit. The sender-IP kit has carried them since
+          // 1.0.69; this kit pointed at the same form with
+          // one evidence block and no per-box guidance, and
+          // its facts differ (a hosted site, not a sender).
+          // Same shape as the mail kit's steps: each names
+          // the form's box, carries that box's slice with
+          // its own copy button, and is skipped when its
+          // slice can't be built. Copy-only buttons — the
+          // launch stays the kit button above.
+          if (lHint.linkFields && lHint.linkFields.length) {
+            var lfWrap = h("div", { "class": "sf-form-fields" });
+            lfWrap.appendChild(h("b", null,
+              "Filling in the " + lHint.label +
+              " form, field by field"));
+            if (lHint.linkFieldsIntro) {
+              lfWrap.appendChild(h("p", { "class": "sf-note" },
+                lHint.linkFieldsIntro));
+            }
+            lHint.linkFields.forEach(function (fld) {
+              var lfTxt = fld.copy
+                ? window.SpamAvenger.buildFormFieldEvidence(a, fld.copy)
+                : null;
+              if (fld.copy && !lfTxt) return; // no slice, no step
+              var lfBlock = h("div", { "class": "sf-form-field" });
+              lfBlock.appendChild(h("b", null,
+                "For the form\u2019s \u201C" + fld.box +
+                "\u201D field"));
+              if (fld.help) {
+                lfBlock.appendChild(h("p", { "class": "sf-fine" },
+                  fld.help));
+              }
+              if (fld.copy) {
+                var lfTa = h("textarea", {});
+                lfTa.readOnly = true;
+                lfTa.value = lfTxt;
+                lfBlock.appendChild(lfTa);
+                var lfBtn = h("button", { "class": "sf-btn-blue",
+                  "type": "button" },
+                  "Copy for the " + fld.box + " field");
+                lfBtn.addEventListener("click", function () {
+                  var copied = false;
+                  try {
+                    lfTa.focus();
+                    lfTa.select();
+                    copied = document.execCommand("copy");
+                  } catch (e) {}
+                  if (!copied && navigator.clipboard) {
+                    navigator.clipboard.writeText(lfTa.value)
+                      .catch(function () {});
+                    copied = true; // best-effort; text stays selected
+                  }
+                  var origLabel = lfBtn.textContent;
+                  lfBtn.textContent = copied
+                    ? "Copied! Paste it into the form\u2019s " +
+                      fld.box + " field (Ctrl+V or right-click " +
+                      "\u2192 Paste)"
+                    : "Select the box above and copy it (Ctrl+C)";
+                  setTimeout(function () {
+                    lfBtn.textContent = origLabel;
+                  }, 6000);
+                });
+                lfBlock.appendChild(lfBtn);
+              }
+              lfWrap.appendChild(lfBlock);
+            });
+            lfw.appendChild(lfWrap);
+          }
           lFormSec.panel.appendChild(lfw);
         } else if (a.linkComplaint) {
           var lSec = acc.section("sf-sec-linkhost", "sf-btn-green",
@@ -2918,7 +3285,40 @@
         }
       }
       var ri = a.registrarInfo;
-      if (!a.spoofDomainSuppressed && ri && (ri.registrar ||
+      // v1.0.73 (queued-registrar-no-contact.md): a registrar
+      // record with NO registrar name and NO abuse contact —
+      // Registro.br's .br shape: the registry registers
+      // direct and its RDAP names no abuse desk anywhere —
+      // leaves the section below nothing it can offer: no
+      // form lane, no built complaint (it needs the abuse
+      // address), not even the fallback note (which needs it
+      // too). The section rendered anyway and dead-ended on
+      // two fact rows (Michael's field find, Nov 21 2026).
+      // Per his Nov 8 2026 ruling for the website/link lanes,
+      // a dead-end section must not render: its facts move
+      // to Show details as rows instead, in this same trace
+      // pass, before the details can first open.
+      var regFormLanePeek = (!a.spoofDomainSuppressed && ri &&
+        window.SpamAvenger.registrarFormLane)
+        ? window.SpamAvenger.registrarFormLane(a) : null;
+      var regNoContact = !a.spoofDomainSuppressed && !!ri &&
+        !ri.registrar && !ri.registrarAbuse && !regFormLanePeek;
+      if (regNoContact) {
+        if (ri.registered) {
+          details.appendChild(mkRow("Domain registered",
+            String(ri.registered).slice(0, 10)));
+        }
+        if (ri.registrant) {
+          var ncRegParts = [ri.registrant.name,
+            ri.registrant.org, ri.registrant.email]
+            .filter(function (x) { return !!x; });
+          if (ncRegParts.length) {
+            details.appendChild(mkRow("Domain registrant",
+              ncRegParts.join(", ")));
+          }
+        }
+      }
+      if (!regNoContact && !a.spoofDomainSuppressed && ri && (ri.registrar ||
                  ri.registered || ri.registrarAbuse ||
                  ri.registrant)) {
         // Public 1.0.72 release (internal build .73): July
@@ -2965,7 +3365,7 @@
           }
         }
         if (regFormLane) {
-          // The July Name form kit, same shape as a deflector
+          // The registrar form kit, same shape as a deflector
           // host's: the evidence box plus one button that
           // copies it and opens the registrar's own form. No
           // email complaint, no Open in Gmail, no
@@ -2973,15 +3373,81 @@
           // email desk is retired, so the fact rows above are
           // all that remains of the email presentation. The
           // form open is the lane's launched action, badged
-          // like every form kit.
-          rw.appendChild(h("p", { "class": "sf-note" },
-            "This registrar doesn't take abuse reports by " +
-            "email \u2014 reports go through its own form. Your " +
-            "report details are in the box below. The button " +
-            "copies them to your clipboard and opens the " +
-            "July Name abuse form. On the form, paste into " +
-            "the details field \u2014 Ctrl+V, or right-click " +
-            "and choose Paste \u2014 then submit the form."));
+          // like every form kit. v1.0.73: TWO kits share this
+          // render — July Name's (the original) and Wanshang
+          // Technology's (queued-wanshang-form-only-
+          // registrar.md) — branched on the lane's `kit`: the
+          // note, the field guide, the evidence heading and
+          // the button label are each kit's own; the box, the
+          // link line and the button machinery are shared.
+          // v1.0.74: FOUR more kits join — Newfold,
+          // BrandFocus, eNom and GoDaddy (their queued files,
+          // Nov 23 2026) — on the generic branch below: one
+          // shared note and heading/button built from the
+          // lane's own label, with each kit's own short
+          // PROVISIONAL field guide (none of the four forms
+          // has been walked end-to-end yet).
+          // v1.0.77: GoDaddy leaves the generic branch —
+          // Michael walked its form live (Nov 23 2026) and
+          // the v1.0.74 lane landed him on a category page
+          // with no fields on it. Its kit now links straight
+          // to the phishing report (the lane's URL, in lib),
+          // carries a WALKED guide of its own below, and —
+          // like the hyperscaler kits — renders the lane's
+          // per-field steps under its button. The other
+          // three stay provisional.
+          var regKit = regFormLane.kit || "julyname";
+          if (regKit === "wanshang") {
+            rw.appendChild(h("p", { "class": "sf-note" },
+              "This registrar doesn't take abuse reports by " +
+              "email \u2014 reports go through its own form. Your " +
+              "report details are in the box below. The button " +
+              "copies them to your clipboard and opens the " +
+              "Wanshang abuse form. On the form, paste into " +
+              "the description field \u2014 Ctrl+V, or right-click " +
+              "and choose Paste \u2014 then submit the form."));
+          } else if (regKit === "julyname") {
+            rw.appendChild(h("p", { "class": "sf-note" },
+              "This registrar doesn't take abuse reports by " +
+              "email \u2014 reports go through its own form. Your " +
+              "report details are in the box below. The button " +
+              "copies them to your clipboard and opens the " +
+              "July Name abuse form. On the form, paste into " +
+              "the details field \u2014 Ctrl+V, or right-click " +
+              "and choose Paste \u2014 then submit the form."));
+          } else if (regKit === "godaddy") {
+            // v1.0.78: the note changes because the button
+            // does — it no longer just copies and opens.
+            // The GoDaddy form is a plain web form, so it
+            // gets the FTC / Safe Browsing treatment: the
+            // button stashes the case and opens the form,
+            // and reportfill.js fills the boxes in on the
+            // other side. The evidence box and the
+            // per-field steps below stay as the by-hand
+            // fallback.
+            rw.appendChild(h("p", { "class": "sf-note" },
+              "This registrar doesn't take abuse reports by " +
+              "email \u2014 reports go through its own form. " +
+              "The button below opens that form and Spam " +
+              "Avenger fills in its boxes for you: the brand " +
+              "being impersonated, the message's links, the " +
+              "description, and your email address if you " +
+              "saved one for your data-deletion letters. " +
+              "You review the filled form and submit it " +
+              "yourself \u2014 nothing is ever sent for you. " +
+              "The boxes below stay here in case you'd " +
+              "rather paste everything in by hand."));
+          } else {
+            rw.appendChild(h("p", { "class": "sf-note" },
+              "This registrar doesn't take abuse reports by " +
+              "email \u2014 reports go through its own form. Your " +
+              "report details are in the box below. The button " +
+              "copies them to your clipboard and opens the " +
+              regFormLane.label + " abuse form. On the form, " +
+              "paste into the description field \u2014 Ctrl+V, or " +
+              "right-click and choose Paste \u2014 then submit " +
+              "the form."));
+          }
           // Public 1.0.72 release (internal build .73): the
           // field guide to the registrar's own form, REWRITTEN
           // after Michael's live walk of Nov 8 2026 (a real
@@ -3000,6 +3466,51 @@
           // guide on the screenshot, which is required, not
           // optional. Panel-only text — none of it enters
           // the copied evidence.
+          if (regKit === "wanshang") {
+            // v1.0.73: the Wanshang field guide, written
+            // from Michael's live walk of the real form on
+            // Nov 21 2026 (his jiuzhicui.com report went
+            // through: complaint WSABUSE-202611212348-8027).
+            // The hoops, in the order they are hit: Chinese
+            // only; an emailed 6-digit verification code
+            // with a 5-minute life (his first code arrived
+            // late and a resend was needed); an abuse-URL
+            // field that rejects any URL on a domain other
+            // than the complained one; a description capped
+            // at 2,000 characters (why the kit copies a
+            // short text); a WSABUSE- complaint number and
+            // a Track Complaint page. Panel-only text.
+            rw.appendChild(h("p", { "class": "sf-note" },
+              h("b", null, "Walking their form:"), h("br"),
+              "Heads-up: the form is in Chinese. To read it " +
+              "in English, use your browser's translate " +
+              "button \u2014 in Firefox, the icon at the right " +
+              "end of the address bar (or right-click the " +
+              "page and choose Translate Page).", h("br"),
+              "The form verifies your email before it lets " +
+              "you file: enter an email address you can " +
+              "read and it sends a 6-digit code, good for " +
+              "five minutes. Mail can arrive late \u2014 if " +
+              "no code lands, use the form's resend once " +
+              "and enter the newest code.", h("br"),
+              "For the abuse type, choose DNS Abuse / " +
+              "Phishing.", h("br"),
+              "The abuse-URL field must point at the " +
+              "reported domain itself \u2014 the form rejects " +
+              "URLs on any other domain. The spam's real " +
+              "links ride in the description instead: the " +
+              "text the button copies already carries " +
+              "them, so paste it in exactly as copied.", h("br"),
+              "The description field caps at 2,000 " +
+              "characters, and the form rejects anything " +
+              "longer. That cap is why the text the button " +
+              "copies is short.", h("br"),
+              "When it accepts, write down the complaint " +
+              "number \u2014 it starts with WSABUSE-. A " +
+              "confirmation email follows, and the site's " +
+              "Track Complaint page shows the report's " +
+              "progress under that number."));
+          } else if (regKit === "julyname") {
           rw.appendChild(h("p", { "class": "sf-note" },
             h("b", null, "Walking their form:"), h("br"),
             "Heads-up: the form is in Chinese. To read it " +
@@ -3062,9 +3573,130 @@
             "report number it shows \u2014 it starts with JY. " +
             "A notification email follows, and you can " +
             "check the report's progress with that number."));
+          } else if (regKit === "godaddy") {
+            // v1.0.77: the GoDaddy field guide, written
+            // from Michael's live walk of the real form on
+            // Nov 23 2026. The v1.0.74 lane opened
+            // abuseform.com — GoDaddy's Report Abuse page,
+            // a category picker (Phishing, Malware, Child
+            // Safety, Intellectual Property, UK/EU
+            // Complaints, Public Safety) with no field on
+            // it. The lane's link now opens the phishing
+            // report itself (legalportal.godaddy.com/abuse/
+            // phishing), and the per-field steps under the
+            // button walk its boxes in its order. What
+            // remains for this guide is the desk's framing
+            // and the one navigation fact. Panel-only text.
+            rw.appendChild(h("p", { "class": "sf-note" },
+              h("b", null, "Walking their form:"), h("br"),
+              "What the email desk does: nothing \u2014 " +
+              "GoDaddy's own auto-reply says its abuse " +
+              "mailbox is not monitored, and that a " +
+              "report must go through its form. Emailing " +
+              "it again changes nothing.", h("br"),
+              "The button below opens the phishing report " +
+              "itself \u2014 the category page is skipped " +
+              "entirely, so the first thing you see is " +
+              "the form.", h("br"),
+              // v1.0.78: the fill itself — the guide pane
+              // on the form page reports what landed.
+              "When the form opens, Spam Avenger fills " +
+              "in the boxes it can, and the guide pane " +
+              "in the corner of the form page says what " +
+              "it filled and what it left, and why. " +
+              "Check those lines before you submit; if " +
+              "a box sits empty, its copy is in the " +
+              "steps under the button.", h("br"),
+              "Reporting in bulk? GoDaddy also takes " +
+              "abuse reports through its developer API " +
+              "(the abuse endpoint under " +
+              "developer.godaddy.com) \u2014 a lane for " +
+              "tooling, not for a single report like " +
+              "this one."));
+          } else {
+            // v1.0.74: the four new desks' field guides —
+            // PROVISIONAL, every one. None of these forms
+            // has been walked end-to-end yet; each desk was
+            // proven form-only by the reply to Michael's own
+            // emailed complaint (Nov 23 2026), and the
+            // guides carry only what those replies prove,
+            // plus the one instruction that survives any
+            // form: the evidence in the box IS the report.
+            // A live filing walk replaces a guide's
+            // provisional lines with field facts, exactly
+            // as the July Name and Wanshang walks did for
+            // theirs. Panel-only text, like every guide.
+            // v1.0.77: THREE desks remain on this branch —
+            // GoDaddy's walk landed (see its own branch
+            // above), exactly the replacement this comment
+            // predicted.
+            var regGuideLines = [];
+            if (regKit === "newfold") {
+              regGuideLines.push(
+                "What the email desk does: it answers with " +
+                "an autoresponder \u2014 do not reply \u2014 that " +
+                "sends every abuse report (phishing, " +
+                "malware, and spam used to deliver them) to " +
+                "this form. An emailed complaint goes no " +
+                "further.");
+              regGuideLines.push(
+                "Newfold Digital is the company behind " +
+                "Web.com and Network Solutions, so this one " +
+                "form covers all three brands' domains.");
+            } else if (regKit === "brandfocus") {
+              regGuideLines.push(
+                "What the email desk does: its auto-reply " +
+                "(in Chinese and English) says the mailbox " +
+                "will no longer accept domain name abuse " +
+                "complaints \u2014 every report goes through " +
+                "its online reporting platform instead.");
+              regGuideLines.push(
+                "The platform is the same outsourced " +
+                "abuse-report service Wanshang uses, under " +
+                "this registrar's own subdomain \u2014 expect " +
+                "the same shape there, including an emailed " +
+                "verification code before the form lets " +
+                "you file.");
+            } else if (regKit === "enom") {
+              regGuideLines.push(
+                "What the email desk does: it acknowledges " +
+                "the email, but nothing is acted on there " +
+                "\u2014 the reply routes abuse issues to this " +
+                "form, where the Compliance team picks " +
+                "them up (\u201ca member of our team will " +
+                "reach out\u201d, in their words).");
+              regGuideLines.push(
+                "eNom is a Tucows registrar; the form is " +
+                "its Abuse Policy page \u2014 fill out all " +
+                "the required fields, in their words, and " +
+                "give as much detail as possible: the text " +
+                "the button copies is that detail.");
+            }
+            regGuideLines.push(
+              "This guide is provisional \u2014 this form " +
+              "hasn't been walked end-to-end yet. If a " +
+              "field doesn't match these notes, trust the " +
+              "form in front of you: the text the button " +
+              "copies is the report itself, and it goes " +
+              "into whichever field asks what happened.");
+            var regGuide = h("p", { "class": "sf-note" },
+              h("b", null, "Walking their form:"));
+            regGuideLines.forEach(function (ln) {
+              regGuide.appendChild(h("br"));
+              regGuide.appendChild(
+                document.createTextNode(ln));
+            });
+            rw.appendChild(regGuide);
+          }
           rw.appendChild(h("b", null,
-            "Form evidence \u2014 paste into the July Name " +
-            "abuse form"));
+            regKit === "wanshang"
+              ? "Form evidence \u2014 paste into the Wanshang " +
+                "abuse form"
+              : regKit === "julyname"
+              ? "Form evidence \u2014 paste into the July Name " +
+                "abuse form"
+              : "Form evidence \u2014 paste into the " +
+                regFormLane.label + " abuse form"));
           var rEta = h("textarea",
             { id: "sf-registrar-evidence" });
           rEta.readOnly = true;
@@ -3081,15 +3713,61 @@
             "Abuse form: ",
             h("a", { href: regFormLane.url, target: "_blank",
               rel: "noopener" }, regFormLane.linkText)));
+          // v1.0.78: the GoDaddy auto-fill launch pieces —
+          // the launched-status line under the button, and
+          // the payload reportfill.js fills from (the
+          // lane's v1.0.77 slices: brand, reported domain,
+          // description). The domain derivation mirrors
+          // the lib's registrar evidence builders exactly.
+          // Declared ahead of the button: the handler below
+          // closes over both.
+          var gdStatus = regKit === "godaddy"
+            ? mkStashStatus("sf-godaddy-status") : null;
+          var gdPayload = null;
+          if (regKit === "godaddy") {
+            var gdDom = "";
+            try {
+              gdDom = window.SpamAvenger.registrableDomain(
+                  a.senderDomain || "") ||
+                ((window.SpamAvenger.senderEmail(a.from)
+                  .match(/@([\w.-]+)/) || [])[1] || "");
+            } catch (e) {}
+            gdPayload = { godaddy: {
+              brand: window.SpamAvenger
+                .buildFormFieldEvidence(a, "brand"),
+              domain: gdDom,
+              description: window.SpamAvenger
+                .buildFormFieldEvidence(a,
+                  "registrarDescription")
+            } };
+          }
           var rFormBtnLabel = h("span",
             { "class": "sf-btn-label" },
-            "Open the July Name abuse form");
+            regKit === "godaddy"
+              ? "Report to GoDaddy"
+              : regKit === "wanshang"
+              ? "Open the Wanshang abuse form"
+              : regKit === "julyname"
+              ? "Open the July Name abuse form"
+              : "Open the " + regFormLane.label +
+                " abuse form");
           var rFormBtn = h("button",
             { id: "sf-open-registrar-form",
               "class": "sf-btn-blue", "type": "button" },
             rFormBtnLabel);
           badgeTargets.registrar.els.push(rFormBtn);
           rFormBtn.addEventListener("click", function () {
+            if (regKit === "godaddy") {
+              // v1.0.78: stash-then-open, like the FTC and
+              // Safe Browsing buttons — the launched record
+              // and badge ride stashThenOpen's open() choke
+              // point under the "registrar" lane, exactly
+              // as this button's copy-and-open handler
+              // recorded them by hand for the other kits.
+              stashThenOpen(regFormLane.url, gdStatus.set,
+                "registrar", gdPayload)();
+              return;
+            }
             var copied = false;
             try {
               rEta.focus();
@@ -3103,7 +3781,9 @@
             }
             var origLabel = rFormBtnLabel.textContent;
             rFormBtnLabel.textContent = copied
-              ? "Copied! The form is open \u2014 paste into its details field (Ctrl+V or right-click \u2192 Paste)"
+              ? (regKit === "julyname"
+                ? "Copied! The form is open \u2014 paste into its details field (Ctrl+V or right-click \u2192 Paste)"
+                : "Copied! The form is open \u2014 paste into its description field (Ctrl+V or right-click \u2192 Paste)")
               : "The form is open \u2014 copy the box text above and paste it in";
             setTimeout(function () {
               rFormBtnLabel.textContent = origLabel;
@@ -3114,6 +3794,83 @@
           });
           rw.appendChild(
             h("div", { "class": "sf-actions" }, rFormBtn));
+          // v1.0.78: the GoDaddy launched-status line sits
+          // under its button, like the FTC lane's.
+          if (gdStatus) rw.appendChild(gdStatus.el);
+          // v1.0.77: per-field steps for a registrar lane
+          // that carries them (the lane's fieldsIntro +
+          // fields, the hyperscaler kits' shape — GoDaddy
+          // is the first registrar lane walked closely
+          // enough to declare them). Same conventions as
+          // the hyperscaler steps: each step names the
+          // form's box, says the one thing to do with it,
+          // and — when the box takes a paste — shows that
+          // field's slice in its own box with its own Copy
+          // button. The copy buttons are copy-only: no form
+          // open, no launched record. Steps whose slice
+          // can't be built (no claimed brand for the brand
+          // box, no links for the URL box) are skipped
+          // outright rather than shown empty.
+          if (regFormLane.fields && regFormLane.fields.length) {
+            var gwrap = h("div", { "class": "sf-form-fields" });
+            gwrap.appendChild(h("b", null,
+              "Filling in the " + regFormLane.label +
+              " form, field by field"));
+            if (regFormLane.fieldsIntro) {
+              gwrap.appendChild(h("p", { "class": "sf-note" },
+                regFormLane.fieldsIntro));
+            }
+            regFormLane.fields.forEach(function (gfld) {
+              var gTxt = gfld.copy
+                ? window.SpamAvenger
+                    .buildFormFieldEvidence(a, gfld.copy)
+                : null;
+              if (gfld.copy && !gTxt) return; // no slice, no step
+              var gBlock = h("div",
+                { "class": "sf-form-field" });
+              gBlock.appendChild(h("b", null,
+                "For the form\u2019s \u201C" + gfld.box +
+                "\u201D field"));
+              if (gfld.help) {
+                gBlock.appendChild(h("p",
+                  { "class": "sf-fine" }, gfld.help));
+              }
+              if (gfld.copy) {
+                var gTa = h("textarea", {});
+                gTa.readOnly = true;
+                gTa.value = gTxt;
+                gBlock.appendChild(gTa);
+                var gBtn = h("button",
+                  { "class": "sf-btn-blue", "type": "button" },
+                  "Copy for the " + gfld.box + " field");
+                gBtn.addEventListener("click", function () {
+                  var copied = false;
+                  try {
+                    gTa.focus();
+                    gTa.select();
+                    copied = document.execCommand("copy");
+                  } catch (e) {}
+                  if (!copied && navigator.clipboard) {
+                    navigator.clipboard.writeText(gTa.value)
+                      .catch(function () {});
+                    copied = true; // best-effort; text stays selected
+                  }
+                  var origLabel = gBtn.textContent;
+                  gBtn.textContent = copied
+                    ? "Copied! Paste it into the form\u2019s " +
+                      gfld.box + " field (Ctrl+V or " +
+                      "right-click \u2192 Paste)"
+                    : "Select the box above and copy it (Ctrl+C)";
+                  setTimeout(function () {
+                    gBtn.textContent = origLabel;
+                  }, 6000);
+                });
+                gBlock.appendChild(gBtn);
+              }
+              gwrap.appendChild(gBlock);
+            });
+            rw.appendChild(gwrap);
+          }
         }
         if (!regFormLane && ri.registrarAbuse) {
           // Public 1.0.72 release (internal build .73): the
@@ -3151,6 +3908,17 @@
         }
         rSec.panel.appendChild(rw);
       }
+      // Public 1.0.73 release (queued-icann-escalation.md):
+      // the ICANN escalation offer for THIS registrar, when
+      // its report records cross the lib's trigger. Async
+      // and self-contained: it reads the record store,
+      // checks the dismissal memory, probes the recorded
+      // domains for liveness, and appends its section to
+      // the stack only when the kit is honestly offerable.
+      if (!a.spoofDomainSuppressed && ri &&
+          (ri.registrar || ri.registrarAbuse)) {
+        try { renderIcannEscalationOffer(ri); } catch (e) {}
+      }
       // v1.0.71 fix: preset the website/registrar badges from
       // stored history. This render runs asynchronously (the
       // domain trace is a network promise), long after the main
@@ -3164,6 +3932,131 @@
           if (typeof rec[lane] === "number") {
             applyLaunchedBadge(lane, rec[lane]);
           }
+        });
+      });
+    }
+
+    // Public 1.0.73 release (queued-icann-escalation.md):
+    // the ICANN escalation kit. Offered in-panel when this
+    // message's registrar has collected enough un-actioned
+    // reports (lib icannEscalationTrigger: 3+ distinct
+    // domains, the oldest 7+ days old) and at least one of
+    // the reported sites is still live — a dead site is a
+    // registrar (or a host) that acted, and escalating over
+    // it would be filing a false premise. The kit is two
+    // downloads (the bulk CSV in the exact shape ICANN's
+    // form accepted from Michael by hand, and an evidence
+    // file) plus the compliance form itself, with the
+    // form's front-door selections spelled out. Dismissing
+    // parks the offer for this registrar until its count
+    // grows past the count at dismissal.
+    function renderIcannEscalationOffer(ri) {
+      var SA = window.SpamAvenger;
+      if (!SA || !SA.icannEscalationTrigger ||
+          !SA.icannRegistrarKey) return;
+      var key = SA.icannRegistrarKey(ri);
+      if (!key) return;
+      var store = saStorageLocal();
+      if (!store) return;
+      store.get(SA_REGISTRAR_REPORTS_KEY, function (res) {
+        if (sfCurrentMsgKey !== msgKey) return; // stale render
+        var records = (res && res[SA_REGISTRAR_REPORTS_KEY]) || [];
+        var trig = SA.icannEscalationTrigger(records, key,
+          Date.now());
+        if (!trig) return;
+        store.get(SA_ICANN_DISMISSED_KEY, function (res2) {
+          if (sfCurrentMsgKey !== msgKey) return;
+          var dismissed =
+            (res2 && res2[SA_ICANN_DISMISSED_KEY]) || {};
+          if (typeof dismissed[key] === "number" &&
+              trig.count <= dismissed[key]) return;
+          var checks = trig.domains.map(function (d) {
+            return saProbeSiteHost(d).then(function (r) {
+              return (r && r.outcome === "response") ? d : null;
+            }).catch(function () { return null; });
+          });
+          Promise.all(checks).then(function (live) {
+            if (sfCurrentMsgKey !== msgKey) return;
+            var liveDomains = live.filter(function (d) {
+              return !!d;
+            });
+            if (!liveDomains.length) return;
+            var sec = acc.section("sf-sec-icann", "sf-btn-blue",
+              "ICANN escalation \u2014 this registrar " +
+              "isn't acting");
+            stack.appendChild(sec.toggle);
+            stack.appendChild(sec.panel);
+            var w = h("div", { "class": "sf-complaint" });
+            w.appendChild(h("p", { "class": "sf-note" },
+              "You've reported " + trig.count + " domains " +
+              "to " + (ri.registrar || ri.registrarAbuse) +
+              " through Spam Avenger, the oldest filed " +
+              saFormatWhen(trig.oldestTs) + ", and " +
+              (liveDomains.length === 1
+                ? "its site is"
+                : liveDomains.length + " of the sites are") +
+              " still live. When a registrar doesn't act, " +
+              "ICANN Contractual Compliance is the " +
+              "escalation. The button below downloads the " +
+              "two files the form needs and opens it."));
+            w.appendChild(h("p", { "class": "sf-note" },
+              h("b", null, "On the ICANN form, choose:"),
+              h("br"),
+              "Complaint type: the \u201cabuse report " +
+              "filed / registrar did not take reasonable " +
+              "steps\u201d option \u2014 the form lists it " +
+              "as an abuse report the registrar failed to " +
+              "act on.", h("br"),
+              "Activity types: Spam, Pharmaceutical, and " +
+              "Fraudulent / deceptive practices \u2014 tick " +
+              "what matches the domains.", h("br"),
+              "Complainant: " +
+              (signedInAccountName() || "your own name") +
+              ", reporting from the email address on this " +
+              "account.", h("br"),
+              "Attachments: the CSV and the evidence file " +
+              "the button downloads."));
+            var kitBtn = h("button",
+              { "class": "sf-btn-blue", "type": "button" },
+              "Download the ICANN files & open the form");
+            kitBtn.addEventListener("click", function () {
+              saDownloadText("icann-domains.csv",
+                SA.buildIcannDomainCsv(liveDomains));
+              var ev = SA.buildIcannEvidence(a, {
+                registrar: ri.registrar || "",
+                registrarAbuse: ri.registrarAbuse || "",
+                domains: liveDomains,
+                count: trig.count,
+                oldestTs: trig.oldestTs
+              });
+              saDownloadText("icann-evidence.txt", ev || "");
+              window.open(ICANN_ESCALATION_URL, "_blank",
+                "noopener");
+            });
+            w.appendChild(h("div", { "class": "sf-actions" },
+              kitBtn));
+            var dismissBtn = h("button",
+              { "class": "sf-btn", "type": "button" },
+              "Don't show this for this registrar");
+            dismissBtn.addEventListener("click", function () {
+              var st = saStorageLocal();
+              if (st) {
+                st.get(SA_ICANN_DISMISSED_KEY, function (r3) {
+                  var dmap =
+                    (r3 && r3[SA_ICANN_DISMISSED_KEY]) || {};
+                  dmap[key] = trig.count;
+                  var payload = {};
+                  payload[SA_ICANN_DISMISSED_KEY] = dmap;
+                  st.set(payload, function () {});
+                });
+              }
+              try { sec.toggle.remove(); } catch (e) {}
+              try { sec.panel.remove(); } catch (e) {}
+            });
+            w.appendChild(h("div", { "class": "sf-actions" },
+              dismissBtn));
+            sec.panel.appendChild(w);
+          });
         });
       });
     }
@@ -3439,6 +4332,17 @@
           !SA.sbLaneVisible(a, a.laneGate || {})) {
         if (sbRow && sbRow.toggle) sbRow.toggle.remove();
         if (sbStatus && sbStatus.el) sbStatus.el.remove();
+        // Public 1.0.73 release (queued-abuse-note-sb-
+        // reference.md): the abuse complaint's blocked note
+        // pointed at this lane ("Report the links below via
+        // Google Safe Browsing instead") — with the lane
+        // itself removed, that pointer dangles. The note's
+        // pointer sentence rides in a span marked
+        // sf-abuse-sb-fallback at render; remove it here,
+        // in the same final pass that removes the lane, so
+        // the note stands on the contact fact alone.
+        stack.querySelectorAll(".sf-abuse-sb-fallback")
+          .forEach(function (el) { el.remove(); });
       }
       if (bucket === "legit") {
         var pidToggle = stack.querySelector("#sf-sec-pid-toggle");
@@ -3544,7 +4448,7 @@
     // ignores it after 30 minutes), and the user still reviews and
     // submits every report themselves. If storage is unavailable the
     // page still opens — a blank form beats a dead button.
-    function stashThenOpen(url, setStashStatus, lane) {
+    function stashThenOpen(url, setStashStatus, lane, extra) {
       return function (ev) {
         if (ev && ev.preventDefault) ev.preventDefault();
         var opened = false;
@@ -3601,6 +4505,13 @@
             subject: a.subject || "",
             ip: a.ip || "",
             server: a.host || "",
+            // v1.0.74 (queued-ftc-guided-picks.md): the
+            // message's own date rides the stash — the FTC
+            // filler's encounter-date fill ("When did you
+            // encounter the scam?") answers with the day
+            // the reported message arrived, which only the
+            // panel knows.
+            date: a.date || "",
             // Public 1.0.72 release (internal build .73):
             // the sextortion flag + demanded wallet ride the
             // stash so reportfill can open the FTC narrative
@@ -3617,6 +4528,13 @@
             fromSpoofed: !!(window.SpamAvenger &&
               window.SpamAvenger.fromAddressSpoofed &&
               window.SpamAvenger.fromAddressSpoofed(a)),
+            // v1.0.78: the GoDaddy form payload (brand,
+            // reported domain, description — the lane's
+            // v1.0.77 slices) rides the stash only when
+            // the launching lane supplied one (extra);
+            // every other lane's stash carries null here
+            // and reportfill ignores it.
+            godaddy: (extra && extra.godaddy) || null,
             savedAt: Date.now()
           } }, function () {
             // v1.0.31: the v1.0.30 callback never checked lastError,
