@@ -69,7 +69,7 @@ function count(hay, needle) {
   return hay.split(needle).length - 1;
 }
 
-ok("manifest: version is 1.0.76", manifest.version === "1.0.86");
+ok("manifest: version is 1.0.76", manifest.version === "1.0.87");
 
 // ---------- wiring pins ----------
 ok("reportfill: the question-pick step is extracted " +

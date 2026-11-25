@@ -245,6 +245,80 @@
  * filled (the FTC rule); the pane never clicks step 2's Next
  * and never submits — the filing is the user's click.
  *
+ * v1.0.88: the AWS abuse-report wizard gets the pane.
+ * support.aws.amazon.com/#/contacts/report-abuse lands on an
+ * intro page ("Report Abusive Activity from Amazon Web
+ * Services Resources"; its orange sign-in button is for AWS
+ * customers filing support requests — the abuse report below
+ * it is the anonymous path), and the panel's AWS button now
+ * stashes an aws payload (the complete header and body, the
+ * first payload link, the short facts narrative). The pane
+ * shows the short guide on every step and, when the details
+ * step ("Tell us abusive activity details") appears, fills
+ * it: the AWS radio stays picked, Category is set to Email,
+ * the Type of abuse option is matched flexibly (an option
+ * whose text contains "spam" or "phishing" — the exact label
+ * was not captured in the owner's live walk, so a dropdown
+ * with no confident match is never guess-clicked and the
+ * pane says so), the big box takes the complete email header
+ * and body, the optional URL box takes the payload link when
+ * the message carries one, and Comments takes the short
+ * narrative (the form caps it at 10,000 characters). A
+ * reporter-details step exists in the wizard and is never
+ * filled (the standing rule); the pane never clicks Next
+ * and never submits. Field map and guide are drawn ONLY
+ * from the owner's Nov 24 2026 live walk of the form.
+ *
+ * v1.0.89: the owner's live test of v1.0.88 on the real
+ * form corrected the walk's shape: the "Tell us abusive
+ * activity details" heading sits over TWO steps. The
+ * FIRST step carries only the AWS / Amazon.com radio
+ * cards and Cancel/Next — Next is disabled until a pick
+ * is made — and the details fields live on the step
+ * after it. v1.0.88 only ran its fill (radio included)
+ * once the details fields existed, so on the radio step
+ * the pane loaded, said nothing about the pick, and the
+ * radio sat unselected. The radio step now has its own
+ * pass, decoupled from the details fill: whenever the
+ * radio group is present, the pane picks AWS (the input
+ * first, then the card container — the nameabuse
+ * precedent — verified by the checked state before it
+ * claims anything), says what happened in a status line,
+ * and hands the verified outcome to the details fill
+ * when that step arrives. One deliberate exception to
+ * the never-overwrite rule: if Amazon.com is the
+ * selected option, the pane switches it to AWS itself
+ * and keeps guard — this lane only ever files
+ * AWS-resource reports, so Amazon.com is never a valid
+ * pick here; it is a wrong-desk error, not a user
+ * preference. If the switch cannot be verified, the
+ * pane hard-stops ("STOP — Amazon.com is selected…")
+ * rather than letting the user proceed. The exception
+ * covers ONLY this radio: typed text and the details
+ * fills keep the never-overwrite discipline. (v1.0.89
+ * also fixes a v1.0.88 slip: guideAws handed
+ * Diag.setExtra the built node instead of a builder
+ * function, so the call threw and the step watch never
+ * started — the guide region and the watch were dead on
+ * the live page even though the pane's lines showed.)
+ *
+ * The same live test showed the step reveals itself
+ * PROGRESSIVELY on one page (left rail: Step 1 "Tell us
+ * abusive activity details", Step 2 "Contact
+ * Information" — the reporter-details step, never
+ * filled): picking AWS renders the Category control
+ * below the cards (a wide custom dropdown, initially
+ * empty), and choosing Category = Email is what reveals
+ * the abuse-details fields. Next stays disabled until
+ * the step validates. A one-shot fill pass can therefore
+ * miss Category entirely, so the watch now works as a
+ * cascade: pick/verify AWS → when Category appears, set
+ * it to Email through the custom-dropdown picker and
+ * verify the displayed value → when the details fields
+ * appear, run the details fill. Each action fires only
+ * when its target is present and not already correctly
+ * set, re-checked on every tick.
+ *
  * The stash is erased as soon as a form is filled. Nothing is ever
  * transmitted by this script, and it NEVER clicks Submit: the user
  * reviews the filled form and sends the report themselves.
@@ -588,6 +662,13 @@
     Diag.setHeader("Spam Avenger Guide");
   }
 
+  // v1.0.88: same on the AWS abuse-report wizard — the
+  // pane is a guide there too, so the Guide header goes
+  // up at load.
+  if (isAwsHost()) {
+    Diag.setHeader("Spam Avenger Guide");
+  }
+
   if (typeof chrome === "undefined" || !chrome.storage ||
       !chrome.storage.local) {
     Diag.debug("stash: READ ERROR: chrome.storage API unavailable " +
@@ -702,6 +783,20 @@
       // the report text riding along in the pane. The
       // Guide header was set at load, above.
       guideNameabuse(stash);
+    } else if (isAwsHost()) {
+      // v1.0.88: the AWS abuse-report wizard gets the
+      // guide pane — the short guide on every step, and
+      // the details-step fill when that step appears.
+      // The Guide header was set at load, above.
+      guideAws(stash);
+    } else if (isCloudflareHost()) {
+      // v1.0.92: Cloudflare's abuse form gets the guide
+      // pane — the category line, the evidence-box fill,
+      // and the notification-choice warning. The banner
+      // is titled "Spam Avenger Guide" here, like the
+      // FTC's and GoDaddy's.
+      Diag.setHeader("Spam Avenger Guide");
+      guideCloudflare(stash);
     }
   });
 
@@ -2369,6 +2464,337 @@
         "for YOUR details \u2014 that one's yours; I " +
         "never fill those in, and I never file the " +
         "report."
+    };
+  }
+
+  /* v1.0.88: the AWS abuse-report wizard — PURE helpers.
+   * The form was walked live by Michael on Nov 24 2026;
+   * every line and field below is drawn from that walk
+   * and nothing else. The wizard's first step ("Tell us
+   * abusive activity details") carries only the AWS /
+   * Amazon.com radio choice; the details step after it
+   * carries a Category dropdown (the email path is
+   * "Email"), a Type of abuse dropdown (the spam /
+   * phishing option — its exact label was NOT captured,
+   * so the match is flexible and a no-match is reported,
+   * never guessed), a "Complete email header and body"
+   * textarea, an optional "URL of abusive email content"
+   * box, and an optional Comments box capped at 10,000
+   * characters. A reporter-details step exists somewhere
+   * in the wizard and is never a fill target. */
+
+  // The pane's short guide — actions only, walked facts
+  // only, in the nameabuse guide's shape. v1.0.89: the
+  // first line is the radio step's standing instruction
+  // — it is in the guide from the moment the pane opens,
+  // before any pick attempt resolves.
+  var AWS_GUIDE_LINES = [
+    "First step on this form: select AWS, then Next.",
+    "Spam Avenger fills in the report details for you " +
+      "on the form's details step.",
+    "The intro page's sign-in button is for AWS " +
+      "customers — the abuse report wizard below it is " +
+      "the anonymous path.",
+    "On the details step: AWS stays picked, Category " +
+      "is Email, and the abuse type is the spam / " +
+      "phishing option.",
+    "The big box takes the complete email header and " +
+      "body — Spam Avenger pastes it in.",
+    "A later step asks for your own name and email — " +
+      "those are yours; Spam Avenger never fills them.",
+    "Review everything, then click Next and Submit " +
+      "yourself — Spam Avenger never submits."
+  ];
+  function awsGuideLines() {
+    return AWS_GUIDE_LINES.slice();
+  }
+
+  // v1.0.89: the radio step's status lines, one per
+  // state the step pass can land in. The pane shows
+  // exactly one of these under the guide while the radio
+  // step is on screen — it never sits silent there.
+  //   picked    the pane clicked AWS and verified it
+  //   already   AWS was already the selected option
+  //   failed    the pane tried and could not pick it
+  //   corrected Amazon.com was selected; the pane
+  //             switched it to AWS and verified it
+  //   blocked   Amazon.com is selected and the switch
+  //             could not be made or verified — a hard
+  //             stop, not a flag (see awsRadioStep)
+  // Anything else (no radio group on screen) maps to
+  // no line at all.
+  function awsRadioLines(state) {
+    if (state === "picked") {
+      return "\u2713 AWS selected for you \u2014 " +
+        "click Next to continue.";
+    }
+    if (state === "already") {
+      return "\u2713 AWS is selected \u2014 click " +
+        "Next to continue.";
+    }
+    if (state === "failed") {
+      return "Select AWS, then click Next \u2014 I " +
+        "couldn't pick it for you.";
+    }
+    if (state === "corrected") {
+      return "Amazon.com was selected \u2014 that " +
+        "sends this report to the wrong desk. " +
+        "Switched to AWS; click Next to continue.";
+    }
+    if (state === "blocked") {
+      return "STOP \u2014 Amazon.com is selected. " +
+        "Do not click Next: this report would go to " +
+        "the wrong desk. Select AWS first.";
+    }
+    return "";
+  }
+
+  // The Type of abuse match: an option whose text
+  // contains "spam" or "phishing", case-insensitive.
+  // Deliberately loose — the exact label was not
+  // captured in the walk — and deliberately honest:
+  // no match means no pick, and the pane says so.
+  function awsTypeTextOk(text) {
+    var t = String(text || "").replace(/\s+/g, " ")
+      .trim().toLowerCase();
+    return t.indexOf("spam") !== -1 ||
+      t.indexOf("phishing") !== -1;
+  }
+  // The Category match: the option IS "Email".
+  function awsCategoryTextOk(text) {
+    return String(text || "").replace(/\s+/g, " ")
+      .trim().toLowerCase() === "email";
+  }
+
+  // v1.0.90: which of the message's links belongs in
+  // the "URL of abusive email content" box — the first
+  // link that is a page, not an asset. Image files and
+  // tracker proxies are skipped: the owner's live walk
+  // (Nov 24 2026) put an ecp.yusercontent.com image
+  // redirect in the box — a tracking pixel's wrapper,
+  // not the payload link. allImages is true when the
+  // message carried links but every one was an image
+  // or a tracker, so the pane can say WHY the box
+  // stays empty instead of implying there were no
+  // links at all.
+  var AWS_IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|svg)$/i;
+  function awsUrlIsImageOrTracker(u) {
+    var s = String(u || "").trim();
+    if (!s) return true;
+    var host = (s.match(/^https?:\/\/([^/?#]+)/i) ||
+      [])[1] || "";
+    host = host.split("@").pop().split(":")[0]
+      .toLowerCase();
+    if (host === "ecp.yusercontent.com" ||
+        /\.yusercontent\.com$/.test(host)) return true;
+    var pathPart = s.split(/[?#]/)[0].toLowerCase();
+    return AWS_IMAGE_EXT_RE.test(pathPart);
+  }
+  function awsPickUrl(urls) {
+    var list = (urls || []).map(function (u) {
+      return String(u || "").trim();
+    }).filter(function (u) { return !!u; });
+    for (var i = 0; i < list.length; i++) {
+      if (!awsUrlIsImageOrTracker(list[i])) {
+        return { url: list[i], allImages: false };
+      }
+    }
+    return { url: null, allImages: list.length > 0 };
+  }
+
+  // The fill plan: what goes where, from the stash's
+  // aws payload (built by the panel from the walked
+  // form's own slices). A null value means the plan has
+  // nothing for that box and the fill skips it.
+  function awsPlan(stash) {
+    var payload = (stash && stash.aws) || {};
+    var plan = {};
+    var hb = String(payload.headerBody || "").trim();
+    plan.headerBody = hb || null;
+    // v1.0.90: the panel stashes the link list; the
+    // pick happens here. A lone payload.url (a stash
+    // written by an older build) still works.
+    var pick = awsPickUrl(payload.urls ||
+      (payload.url ? [payload.url] : []));
+    plan.url = pick.url;
+    plan.urlAllImages = pick.allImages;
+    // v1.0.90: the payload carries a marker line when
+    // the body was mostly invisible padding (see
+    // lib/analyze.js stripBodyPadding) — surface it so
+    // the outcome lines can say so.
+    plan.bodyMostlyPadding = hb.indexOf(
+      "mostly invisible padding") !== -1;
+    var cm = String(payload.comments || "").trim();
+    if (cm.length > 10000) cm = cm.slice(0, 10000);
+    plan.comments = cm || null;
+    plan.from = (stash && stash.from) || "";
+    return plan;
+  }
+
+  // The truthful status lines for a finished fill pass,
+  // in the GoDaddy / nameabuse outcome shape. outcomes
+  // maps each target — resource, category, type,
+  // headerBody, url, comments — to "filled", "already",
+  // "notfound", "wiped" (a text write the form undid),
+  // "nomatch" (a dropdown held no matching option),
+  // "failed" (a pick that didn't take), or "skipped"
+  // (the plan held nothing for the box).
+  function awsOutcomeLines(plan, outcomes) {
+    var NAMES = {
+      resource: "the AWS choice",
+      category: "the Email category",
+      type: "the abuse type",
+      headerBody: "the complete header and body",
+      url: "the abusive URL",
+      comments: "the comments"
+    };
+    var ORDER = ["resource", "category", "type",
+      "headerBody", "url", "comments"];
+    var filled = [], already = [], notes = [];
+    ORDER.forEach(function (k) {
+      if (outcomes[k] === "filled") filled.push(NAMES[k]);
+      else if (outcomes[k] === "already") {
+        already.push(NAMES[k]);
+      }
+    });
+    function joinNames(list) {
+      if (list.length <= 1) return list.join("");
+      if (list.length === 2) {
+        return list[0] + " and " + list[1];
+      }
+      return list.slice(0, -1).join(", ") + ", and " +
+        list[list.length - 1];
+    }
+    // The details step is only "gone" when its own boxes
+    // can't be found — the picks and the big box.
+    var formGone = outcomes.headerBody === "notfound" &&
+      outcomes.type === "notfound" &&
+      outcomes.category === "notfound";
+    var lead;
+    if (formGone) {
+      lead = "I don't see the form's details step on " +
+        "this page — nothing was filled in. The report " +
+        "text is in the box below if you want to paste " +
+        "it in.";
+    } else if (filled.length) {
+      lead = "\u2713 I filled in " + joinNames(filled) +
+        (already.length
+          ? "; " + joinNames(already) +
+            (already.length > 1 ? " were" : " was") +
+            " already set, so I left " +
+            (already.length > 1 ? "them" : "it") +
+            " alone."
+          : ".");
+    } else if (already.length) {
+      lead = "The details step already had " +
+        joinNames(already) + " set — I left the form " +
+        "as it was.";
+    } else {
+      lead = "\u26A0 I couldn't fill the details step " +
+        "in.";
+    }
+    if (outcomes.type === "nomatch") {
+      notes.push("I couldn't match the Type of abuse " +
+        "option to spam or phishing — pick it yourself; " +
+        "I didn't guess.");
+    } else if (outcomes.type === "notfound") {
+      notes.push("I couldn't find the Type of abuse " +
+        "dropdown — pick the spam / phishing option " +
+        "yourself.");
+    }
+    if (outcomes.resource === "failed" ||
+        outcomes.resource === "notfound") {
+      notes.push("Make sure AWS (not Amazon.com) is " +
+        "the picked choice at the top.");
+    }
+    if (outcomes.category === "nomatch" ||
+        outcomes.category === "failed") {
+      notes.push("Set Category to Email yourself — I " +
+        "couldn't set it.");
+    }
+    if (outcomes.headerBody === "skipped") {
+      notes.push("The panel saved no header-and-body " +
+        "evidence for this one — copy it from the " +
+        "message and paste it into the big box.");
+    } else if (outcomes.headerBody === "wiped") {
+      notes.push("The form cleared the header-and-body " +
+        "box after I filled it — the text is in the box " +
+        "below; paste it in yourself.");
+    }
+    if (outcomes.url === "skipped") {
+      if (plan.urlAllImages) {
+        notes.push("The only links in this message " +
+          "are tracking images, so the URL box is " +
+          "left empty.");
+      } else {
+        notes.push("The URL box is empty — this " +
+          "message carried no link I could find (the " +
+          "box is optional).");
+      }
+    }
+    if (plan.bodyMostlyPadding &&
+        outcomes.headerBody === "filled") {
+      notes.push("The message body was mostly " +
+        "invisible padding — I stripped it; the " +
+        "headers pasted above are the real evidence.");
+    }
+    if (outcomes.comments === "skipped") {
+      notes.push("The Comments box is empty — the short " +
+        "version of the report is in the Gmail panel, " +
+        "if you want it there.");
+    }
+    // v1.0.90: blockers first. A required field left
+    // unfilled on this step keeps the form's Next grey
+    // (the live walk stranded exactly there, under a
+    // "✓ I filled in…" headline) — that fact outranks
+    // the filled list, so it LEADS and the summary
+    // follows in the notes. Type of abuse above all,
+    // then the AWS choice, Category, and the header
+    // and body box (the one text box the form does
+    // not mark optional).
+    var blockers = [];
+    if (outcomes.type === "nomatch" ||
+        outcomes.type === "notfound" ||
+        outcomes.type === "failed") {
+      blockers.push("Type of abuse still needs your " +
+        "pick — Next stays grey until it's set.");
+    }
+    if (outcomes.resource === "failed" ||
+        outcomes.resource === "notfound") {
+      blockers.push("The AWS choice still needs your " +
+        "pick — Next stays grey until it's set.");
+    }
+    if (outcomes.category === "nomatch" ||
+        outcomes.category === "failed" ||
+        outcomes.category === "notfound") {
+      blockers.push("Category still needs to be set " +
+        "to Email — Next stays grey until it's set.");
+    }
+    if (outcomes.headerBody === "wiped" ||
+        outcomes.headerBody === "notfound") {
+      blockers.push("The header and body box is " +
+        "still empty — Next stays grey until it's " +
+        "filled.");
+    }
+    if (!formGone && blockers.length) {
+      var front = [];
+      if (filled.length || already.length) {
+        front.push(lead);
+      }
+      for (var bi = 1; bi < blockers.length; bi++) {
+        front.push(blockers[bi]);
+      }
+      notes = front.concat(notes);
+      lead = blockers[0];
+    }
+    return {
+      lead: lead,
+      sub1: notes.join(" "),
+      sub2: formGone ? "" :
+        "Review everything above, then click Next " +
+        "yourself — I never click Next or submit for " +
+        "you. A later step asks for your own name and " +
+        "email — those are yours to fill in."
     };
   }
 
@@ -4482,5 +4908,1454 @@
       Diag.set("sub2", lines.sub2);
       Diag.debug("nameabuse: details fill pass done");
     }
+  }
+
+  /* ---------------- AWS abuse-report wizard ---------------- */
+
+  function isAwsHost() {
+    return location.hostname === "support.aws.amazon.com";
+  }
+
+  // The pane's extra region for this lane, in the
+  // nameabuse pane's shape: the short guide, then the
+  // report payload in a read-only box with a Copy
+  // button — the fallback for anything the fill
+  // couldn't land.
+  function buildAwsExtra(plan) {
+    var wrap = document.createElement("div");
+    var guide = document.createElement("div");
+    guide.style.cssText = "margin:0 0 8px;";
+    awsGuideLines().forEach(function (line) {
+      var p = document.createElement("div");
+      p.textContent = line;
+      guide.appendChild(p);
+    });
+    wrap.appendChild(guide);
+    if (plan.headerBody) {
+      var cap = document.createElement("div");
+      cap.style.cssText = "font-weight:700;margin:0 0 4px;";
+      cap.textContent = "Report text (the complete " +
+        "header and body):";
+      wrap.appendChild(cap);
+      var ta = document.createElement("textarea");
+      ta.readOnly = true;
+      ta.value = plan.headerBody;
+      ta.style.cssText = "width:100%;height:90px;" +
+        "box-sizing:border-box;font:11px/1.4 monospace;";
+      wrap.appendChild(ta);
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = "Copy the report text";
+      btn.style.cssText = "margin-top:6px;padding:6px " +
+        "12px;font:600 13px sans-serif;cursor:pointer;";
+      btn.addEventListener("click", function () {
+        function done() {
+          btn.textContent = "Copied \u2713";
+          setTimeout(function () {
+            btn.textContent = "Copy the report text";
+          }, 2500);
+        }
+        try { ta.focus(); ta.select(); } catch (e) {}
+        var okCopy = false;
+        try {
+          okCopy = document.execCommand("copy");
+        } catch (e) {}
+        if (okCopy) { done(); return; }
+        if (navigator.clipboard &&
+            navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(ta.value)
+            .then(done, function () {});
+        }
+      });
+      wrap.appendChild(btn);
+    }
+    return wrap;
+  }
+
+  // The details step's own boxes, found by the labels
+  // the owner walked. Returns null for anything the
+  // current step doesn't carry — the wizard's other
+  // steps (intro, reporter details) simply have none of
+  // these, and the reporter boxes are never searched
+  // for at all.
+  function awsFindField(kind) {
+    if (kind === "headerBody") {
+      return findField("textarea",
+        /complete email header and body/i);
+    }
+    if (kind === "comments") {
+      return findField("textarea", /comments/i);
+    }
+    if (kind === "url") {
+      return findField("input",
+        /url of abusive email content/i);
+    }
+    if (kind === "category") {
+      return findField(
+        "select, [role='combobox'], [role='listbox']",
+        /category/i) ||
+        awsFindDropdownByLabel("category");
+    }
+    if (kind === "type") {
+      return findField(
+        "select, [role='combobox'], [role='listbox']",
+        /type of abuse/i) ||
+        awsFindDropdownByLabel("type of abuse");
+    }
+    return null;
+  }
+
+  // v1.0.90: the label-anchored dropdown hunt. The
+  // live walk's Type of abuse control defeated
+  // findField — the control sat on screen while the
+  // fill reported the dropdown missing (whatever its
+  // label association, controlLabel never matched it,
+  // and a plain <button> dropdown is outside
+  // findField's tag list entirely). Anchor on the
+  // label's own text instead: find the element whose
+  // whole text IS the label, then take the first
+  // dropdown-like control in the container it shares,
+  // button dropdowns included.
+  function awsFindDropdownByLabel(phrase) {
+    var want = phrase.toLowerCase();
+    var labels = document.querySelectorAll(
+      "label, div, span, p, legend");
+    for (var i = 0; i < labels.length; i++) {
+      var lab = labels[i];
+      if (!isVisible(lab)) continue;
+      if (nameabuseNormText(lab.textContent)
+          .toLowerCase() !== want) continue;
+      var node = lab;
+      for (var up = 0; up < 5 && node; up++) {
+        if (node.querySelectorAll) {
+          var ctrls = node.querySelectorAll(
+            "select, button, [role='combobox'], " +
+            "[role='listbox']");
+          for (var j = 0; j < ctrls.length; j++) {
+            if (ctrls[j] !== lab &&
+                isVisible(ctrls[j])) {
+              return ctrls[j];
+            }
+          }
+        }
+        node = node.parentElement;
+      }
+    }
+    return null;
+  }
+
+  // The wizard's radio pair: the "AWS" radio and the
+  // "Amazon.com" radio, each matched by its label or
+  // its value — labels on custom radio cards can sit
+  // outside the shared helpers' reach, so a value of
+  // "AWS" / "Amazon.com" counts too. Either side can
+  // be null when the current step doesn't carry it.
+  function awsFindRadioPair() {
+    var pair = { aws: null, amazon: null };
+    var inputs = document.querySelectorAll(
+      "input[type='radio']");
+    for (var i = 0; i < inputs.length; i++) {
+      var el = inputs[i];
+      if (!isVisible(el) && !isVisible(el.parentElement)) {
+        continue;
+      }
+      var lab = nameabuseNormText(controlLabel(el))
+        .toLowerCase();
+      var val = String(el.value || "").trim()
+        .toLowerCase();
+      if (!pair.aws && (lab === "aws" || val === "aws")) {
+        pair.aws = el;
+      } else if (!pair.amazon &&
+          (lab === "amazon.com" || lab === "amazon" ||
+           val === "amazon.com" || val === "amazon")) {
+        pair.amazon = el;
+      }
+    }
+    return pair;
+  }
+
+  // The AWS radio alone (the details fill's view of
+  // the pair).
+  function awsFindRadio() {
+    return awsFindRadioPair().aws;
+  }
+
+  // The abuse-details fields proper. v1.0.89: Category
+  // alone no longer counts — on the progressively
+  // revealed step, Category renders BEFORE these fields
+  // exist, and counting it would fire the one-shot fill
+  // into a step that isn't there yet (the cascade's
+  // Category stage keys off awsFindField("category")
+  // directly).
+  function awsDetailsPresent() {
+    return !!awsFindField("headerBody") ||
+      !!awsFindField("type");
+  }
+
+  // Step 2 of the wizard, as walked Nov 24 2026: the
+  // "Reporter information" step. Its markers are boxes
+  // and choices step 1 never carries — a First name
+  // box, a tracking-reference box, or the Reporter
+  // description radio choices (Internet user / law
+  // enforcement / independent security researcher).
+  // The pane's own text is never a form label, so
+  // these markers can't self-match.
+  function awsContactStepPresent() {
+    if (findField("input", /first name/i)) return true;
+    if (findField("input", /tracking reference/i)) {
+      return true;
+    }
+    var inputs = document.querySelectorAll(
+      "input[type='radio']");
+    for (var i = 0; i < inputs.length; i++) {
+      var lab = nameabuseNormText(
+        controlLabel(inputs[i])).toLowerCase();
+      if (lab === "internet user" ||
+          lab.indexOf("law enforcement") === 0 ||
+          lab.indexOf("independent security") === 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // The pane's extra region on Step 2: contact-step
+  // guidance only — none of the details step's guide
+  // lines or payload rides along. The owner's rule
+  // (Nov 24 2026): the guide updates with each new
+  // page; Step 1's text is not relevant on this page.
+  function buildAwsContactExtra() {
+    var wrap = document.createElement("div");
+    var lines = [
+      "This step is yours — Spam Avenger never " +
+        "fills in your contact details.",
+      "Only the email address is required. First " +
+        "and last name, organization, phone number, " +
+        "and your tracking reference are all " +
+        "optional — leave them blank if you like.",
+      "Reporter description is optional too — " +
+        "\u201CInternet user\u201D is the ordinary pick.",
+      "When you're ready, click Submit Form " +
+        "yourself — Spam Avenger never submits."
+    ];
+    lines.forEach(function (line) {
+      var p = document.createElement("div");
+      p.textContent = line;
+      wrap.appendChild(p);
+    });
+    return wrap;
+  }
+
+  // One dropdown pick, native or custom. The current
+  // selection is checked first (a form that already
+  // shows the right value is left untouched); a native
+  // select is set by value and re-read; a custom
+  // dropdown is opened and its option clicked
+  // (awsOpenAndPick, v1.0.90 — anchored on the control
+  // the finders found, label-anchored fallback
+  // included). Outcomes: filled / already / notfound /
+  // nomatch / failed. Never a guess: when no option
+  // matches okFn, nothing is clicked.
+  function awsPickSelect(kind, labelRe, optionRe, okFn,
+                         done) {
+    var control = awsFindField(kind);
+    if (!control) { done("notfound"); return; }
+    function currentOk() {
+      if (control.tagName === "SELECT") {
+        var opt = control.options[control.selectedIndex];
+        return opt ? okFn(opt.textContent || "") : false;
+      }
+      var shown = control.value != null &&
+        String(control.value) !== ""
+        ? String(control.value)
+        : (control.textContent || "");
+      return okFn(shown);
+    }
+    if (currentOk()) { done("already"); return; }
+    if (control.tagName === "SELECT") {
+      for (var i = 0; i < control.options.length; i++) {
+        if (okFn(control.options[i].textContent || "")) {
+          setNativeValue(control,
+            control.options[i].value);
+          done(currentOk() ? "filled" : "failed");
+          return;
+        }
+      }
+      done("nomatch");
+      return;
+    }
+    // v1.0.90: open the control the finders actually
+    // found and hunt its option list here, instead of
+    // trySelectOption's fresh label search — that
+    // second search is what reported the on-screen
+    // Type of abuse dropdown missing on the live walk.
+    awsOpenAndPick(control, optionRe, function (okPick) {
+      done(okPick ? "filled" : "nomatch");
+    });
+  }
+
+  // Open a custom dropdown control and click the
+  // option whose visible text matches optionRe — the
+  // trySelectOption hunt, anchored on a control the
+  // caller already found. Never a guess: no matching
+  // option, no click.
+  function awsOpenAndPick(control, optionRe, done) {
+    var finished = false;
+    function finish(ok) {
+      if (!finished) { finished = true; done(ok); }
+    }
+    try { control.click(); } catch (e) {
+      finish(false);
+      return;
+    }
+    var tries = 0;
+    var timer = setInterval(function () {
+      tries++;
+      var opts = document.querySelectorAll(
+        "[role='option'], [role='listbox'] *, " +
+        "mat-option, [class*='option'], " +
+        "[class*='Option']");
+      for (var j = 0; j < opts.length; j++) {
+        var tx = (opts[j].textContent || "").trim();
+        if (tx && tx.length < 80 && optionRe.test(tx) &&
+            isVisible(opts[j])) {
+          try { opts[j].click(); } catch (e) {}
+          clearInterval(timer);
+          finish(true);
+          return;
+        }
+      }
+      if (tries >= 10) {
+        clearInterval(timer);
+        finish(false);
+      }
+    }, 200);
+  }
+
+  /* v1.0.89: the radio step's own pass, decoupled from
+   * the details fill. The wizard's first step carries
+   * ONLY the AWS / Amazon.com cards (Next disabled until
+   * a pick), so this pass runs whenever the group is
+   * present — details fields or not — and the watch
+   * re-runs it on every tick while the case is loaded. */
+
+  // The card container's text ceiling — the nameabuse
+  // card rule's shape (NA_CARD_MAX_TEXT): a single card
+  // runs to a few hundred characters at most; a row or
+  // a page runs well past it and can never be picked.
+  var AWS_CARD_MAX_TEXT = 320;
+
+  // The click target for a card-style radio: the
+  // NEAREST sensible container holding the option's
+  // label — the ancestor (of the input, or of its
+  // label element) whose text carries the label exactly
+  // once, is longer than nothing and no longer than a
+  // card, and is the smallest such ancestor (the card
+  // itself, not the row of both cards). The label
+  // element itself is the fallback. No button-ness is
+  // required anywhere — the nameabuse precedent.
+  function awsRadioCardTarget(radio) {
+    var phrase = nameabuseNormText(controlLabel(radio))
+      .toLowerCase();
+    if (!phrase) {
+      phrase = String(radio.value || "").trim()
+        .toLowerCase();
+    }
+    if (!phrase) return null;
+    var starts = [radio];
+    var lab = radio.closest ? radio.closest("label")
+      : null;
+    if (lab && lab !== radio) starts.push(lab);
+    var best = null, bestLen = Infinity;
+    starts.forEach(function (start) {
+      var node = start.parentElement;
+      for (var up = 0; up < 7 && node; up++) {
+        var text = nameabuseNormText(node.textContent)
+          .toLowerCase();
+        var hits = 0, at = 0;
+        while (true) {
+          at = text.indexOf(phrase, at);
+          if (at === -1) break;
+          hits++;
+          at += phrase.length;
+        }
+        if (hits === 1 && text.length >= phrase.length &&
+            text.length <= AWS_CARD_MAX_TEXT &&
+            text.length < bestLen) {
+          best = node;
+          bestLen = text.length;
+        }
+        node = node.parentElement;
+      }
+    });
+    return best || lab || null;
+  }
+
+  // Pick the AWS radio and prove it: the input itself
+  // first; if that doesn't take (a hidden input behind
+  // a card widget), the card container. Success is
+  // claimed ONLY when the input reads checked
+  // afterwards — a click that didn't land is a failure,
+  // never a claim.
+  function awsTryPickRadio(radio) {
+    if (!radio) return false;
+    try {
+      if (radio.scrollIntoView) {
+        radio.scrollIntoView({ block: "nearest",
+          inline: "nearest" });
+      }
+    } catch (e) {}
+    try { radio.click(); } catch (e) {}
+    if (radio.checked) return true;
+    var card = awsRadioCardTarget(radio);
+    if (card && card !== radio) {
+      try {
+        if (card.scrollIntoView) {
+          card.scrollIntoView({ block: "nearest",
+            inline: "nearest" });
+        }
+      } catch (e) {}
+      try { card.click(); } catch (e) {}
+    }
+    return !!radio.checked;
+  }
+
+  // One pass over the radio step. `guard` is the
+  // watch's persistent state ({ attempted, wrongEpisode,
+  // outcome }); returns the awsRadioLines state key for
+  // what the pane should say right now, or null when
+  // the radio group isn't on screen. Side effects: at
+  // most one pick attempt per unpicked episode, and —
+  // the deliberate exception — a correction whenever
+  // Amazon.com is the selected option.
+  //
+  // THE EXCEPTION, stated once: the add-on's
+  // never-overwrite discipline yields for THIS radio
+  // only. This lane exists solely to file AWS-resource
+  // abuse reports, so with an AWS case loaded,
+  // "Amazon.com" is never a valid pick — it routes the
+  // report to the retail desk, a complete error, not a
+  // preference to respect. The pane therefore switches
+  // it to AWS itself, verifies, and says it did; if the
+  // switch cannot be verified it hard-stops the user
+  // ("STOP — Amazon.com is selected…") instead of
+  // waving them through. The guard persists while the
+  // case is loaded: if the pick flips back, a new
+  // wrong-pick episode begins and it corrects again.
+  // Typed text and every details-step fill remain
+  // strictly never-overwrite.
+  function awsRadioStep(guard) {
+    var pair = awsFindRadioPair();
+    if (!pair.aws && !pair.amazon) return null;
+    if (pair.amazon && pair.amazon.checked) {
+      if (!guard.wrongEpisode) {
+        guard.wrongEpisode = true;
+        if (pair.aws && awsTryPickRadio(pair.aws)) {
+          guard.outcome = "filled";
+          return "corrected";
+        }
+      }
+      return pair.aws && pair.aws.checked
+        ? "corrected" : "blocked";
+    }
+    guard.wrongEpisode = false;
+    if (pair.aws && pair.aws.checked) {
+      if (!guard.outcome) guard.outcome = "already";
+      return guard.outcome === "filled"
+        ? "picked" : "already";
+    }
+    if (!pair.aws) return null;
+    if (!guard.attempted) {
+      guard.attempted = true;
+      if (awsTryPickRadio(pair.aws)) {
+        guard.outcome = "filled";
+        return "picked";
+      }
+      // Not verified on the spot — a framework may
+      // settle the pick a beat later; the next tick
+      // re-reads before anyone is told it failed.
+      return null;
+    }
+    return "failed";
+  }
+
+  // Does the Type of abuse control currently SHOW a
+  // spam/phishing value? The v1.0.90 retry watch's
+  // verify — the displayed value is the proof, the
+  // same rule as Category's below.
+  function awsTypeShowsOk() {
+    var control = awsFindField("type");
+    if (!control) return false;
+    if (control.tagName === "SELECT") {
+      var opt = control.options[control.selectedIndex];
+      return opt
+        ? awsTypeTextOk(opt.textContent || "")
+        : false;
+    }
+    var shown = control.value != null &&
+      String(control.value) !== ""
+      ? String(control.value)
+      : (control.textContent || "");
+    return awsTypeTextOk(shown);
+  }
+
+  // Does the Category control currently SHOW Email?
+  // The cascade's verify step for the custom-dropdown
+  // pick: the picker's own success is a click, not a
+  // state — the displayed value is the proof.
+  function awsCategoryShowsEmail() {
+    var control = awsFindField("category");
+    if (!control) return false;
+    if (control.tagName === "SELECT") {
+      var opt = control.options[control.selectedIndex];
+      return opt
+        ? awsCategoryTextOk(opt.textContent || "")
+        : false;
+    }
+    var shown = control.value != null &&
+      String(control.value) !== ""
+      ? String(control.value)
+      : (control.textContent || "");
+    return awsCategoryTextOk(shown);
+  }
+
+  function guideAws(stash) {
+    var payload = (stash && stash.aws) || null;
+    if (!payload) {
+      // The page was opened without the panel's stash
+      // (a typed URL, the link-host kit, an expired
+      // case): stand down gracefully, like every lane.
+      Diag.set("lead", "I don't have a case loaded " +
+        "for this form. Open the message in Gmail and " +
+        "use Spam Avenger's Amazon AWS button — it " +
+        "brings the report with it.");
+      Diag.debug("aws: no aws payload in the stash — " +
+        "standing down");
+      return;
+    }
+    var plan = awsPlan(stash);
+    Diag.set("lead", "Your Amazon AWS report is " +
+      "loaded — walking the form with you.");
+    Diag.set("sub1", plan.from
+      ? "Message from: " + plan.from : "");
+    Diag.set("sub2", "");
+    // v1.0.89: a builder function, like every other
+    // lane — v1.0.88 passed the built node itself, the
+    // call threw, and the watch below never started.
+    Diag.setExtra(function () {
+      return buildAwsExtra(plan);
+    });
+    Diag.debug("aws: guide up; watching the step " +
+      "cascade");
+    watchAwsSteps(plan);
+  }
+
+  // The wizard is a single-page app whose step reveals
+  // itself progressively (see the header note), so the
+  // watch works as a CASCADE, re-checked on every tick
+  // (a half-second poll under a 15-minute cap):
+  //   1. the radio step — awsRadioStep picks/verifies
+  //      AWS and guards the pick while the case is
+  //      loaded; its status line owns sub2 until a
+  //      later stage speaks;
+  //   2. Category — when the control appears, set it
+  //      to Email (custom-dropdown picker), then verify
+  //      the displayed value on a following tick before
+  //      claiming it;
+  //   3. the details fields — when they appear, the one
+  //      details fill runs, consuming the earlier
+  //      stages' verified outcomes as presets.
+  // Each action fires only when its target is present
+  // and not already correctly set. After the fill, the
+  // watch stays alive for the radio guard alone.
+  // v1.0.90 adds two more watch duties: the pane's
+  // content follows the wizard step (Step 2 gets
+  // contact content only; coming back restores the
+  // form step's lines), and a Type of abuse miss by
+  // the one-shot fill is retried across ticks while
+  // the details step stands incomplete — see tickStep
+  // and tickType inside.
+  // v1.0.91 adds a third: while the details step
+  // stands incomplete, the text outcomes are
+  // re-judged from the live page on every tick — see
+  // tickText inside and awsLiveTextOutcome below.
+  function watchAwsSteps(plan) {
+    var deadline = Date.now() + 15 * 60 * 1000;
+    var cascade = { preset: {}, fillDone: false };
+    var guard = { attempted: false,
+      wrongEpisode: false, outcome: null };
+    var radioLine = "";
+    var sub2Shown = "";
+    var catState = "waiting"; // waiting|working|verify|done
+    var detailsStarted = false;
+    // v1.0.90: the pane follows the wizard step (the
+    // owner's rule — the guide updates with each new
+    // page), and a Type pick the one-shot fill missed
+    // is retried while the details step stands
+    // incomplete.
+    var paneStep = "form"; // form | contact
+    var typeState = "pending"; // pending|ok|waiting|nomatch
+    var typeBusy = false;
+    var timer = setInterval(function () {
+      if (Date.now() > deadline) {
+        clearInterval(timer);
+        return;
+      }
+      tickStep();
+      if (paneStep === "contact") return;
+      tickRadio();
+      tickCategory();
+      tickDetails();
+      tickType();
+      tickText();
+    }, 500);
+    // Step transitions swap the pane's whole content:
+    // Step 2 gets contact guidance ONLY (no Step 1
+    // status or guide text carries over), and coming
+    // back restores the form step's own lines — the
+    // fill's outcome lines when the fill has run, the
+    // loaded lines when it hasn't.
+    function tickStep() {
+      var contact = awsContactStepPresent();
+      if (contact && paneStep !== "contact") {
+        paneStep = "contact";
+        Diag.set("lead", "You're on Step 2 \u2014 " +
+          "Contact Information.");
+        Diag.set("sub1", "This step is yours to fill " +
+          "in \u2014 Spam Avenger never fills in your " +
+          "contact details.");
+        Diag.set("sub2", "Email address is the only " +
+          "box this step requires. Submit Form is " +
+          "your click when you're ready.");
+        Diag.setExtra(function () {
+          return buildAwsContactExtra();
+        });
+        Diag.debug("aws: contact step \u2014 pane " +
+          "switched to the contact content");
+      } else if (!contact && paneStep === "contact") {
+        paneStep = "form";
+        Diag.setExtra(function () {
+          return buildAwsExtra(plan);
+        });
+        if (cascade.lastLines) {
+          Diag.set("lead", cascade.lastLines.lead);
+          Diag.set("sub1", cascade.lastLines.sub1);
+          Diag.set("sub2", cascade.lastLines.sub2);
+          sub2Shown = cascade.lastLines.sub2;
+        } else {
+          Diag.set("lead", "Your Amazon AWS report " +
+            "is loaded \u2014 walking the form with " +
+            "you.");
+          Diag.set("sub1", plan.from
+            ? "Message from: " + plan.from : "");
+          Diag.set("sub2", radioLine);
+          sub2Shown = radioLine;
+        }
+        Diag.debug("aws: back on the form step \u2014 " +
+          "pane restored");
+      }
+    }
+    // The Type retry: the details fill runs once, but
+    // its Type miss is not the final word. While the
+    // outcome stands unresolved (the control wasn't
+    // there yet, or a pick didn't take), each tick
+    // re-checks the displayed value — the user picking
+    // it themselves resolves the wait too — and
+    // re-runs the pick when the control is present.
+    // A nomatch (the dropdown is there and holds no
+    // spam/phishing option) is final: retrying can't
+    // change the option list.
+    function tickType() {
+      if (!cascade.fillDone || typeBusy) return;
+      if (typeState === "pending") {
+        var o = cascade.typeOutcome;
+        typeState = (o === "filled" || o === "already")
+          ? "ok"
+          : (o === "nomatch" ? "nomatch" : "waiting");
+      }
+      if (typeState !== "waiting") return;
+      if (!awsDetailsPresent()) return;
+      if (awsTypeShowsOk()) {
+        resolveType("already");
+        return;
+      }
+      typeBusy = true;
+      awsPickSelect("type", /type of abuse/i,
+        /spam|phishing/i, awsTypeTextOk,
+        function (o2) {
+          typeBusy = false;
+          if (o2 === "filled" || o2 === "already") {
+            resolveType(o2);
+          } else if (o2 === "nomatch") {
+            typeState = "nomatch";
+            if (cascade.outcomes) {
+              cascade.outcomes.type = "nomatch";
+              refreshOutcomeLines();
+            }
+          }
+          // notfound: stay waiting — the control may
+          // still render on a later tick.
+        });
+    }
+    function resolveType(o) {
+      typeState = "ok";
+      if (cascade.outcomes) {
+        cascade.outcomes.type = o;
+        refreshOutcomeLines();
+      }
+      Diag.debug("aws: type pick resolved on a later " +
+        "tick \u2014 " + o);
+    }
+    function refreshOutcomeLines() {
+      var lines = awsOutcomeLines(plan,
+        cascade.outcomes);
+      cascade.lastLines = lines;
+      Diag.set("lead", lines.lead);
+      Diag.set("sub1", lines.sub1);
+      Diag.set("sub2", lines.sub2);
+      sub2Shown = lines.sub2;
+    }
+    function showSub2(line) {
+      if (!line || line === sub2Shown) return;
+      sub2Shown = line;
+      Diag.set("sub2", line);
+    }
+    // v1.0.91: the details step "stands incomplete"
+    // while any outcome would lead the pane with a
+    // blocker (the same set awsOutcomeLines promotes:
+    // a Type miss above all, then the AWS choice,
+    // Category, and the header-and-body box).
+    function detailsIncomplete() {
+      var o = cascade.outcomes;
+      if (!o) return false;
+      return o.type === "nomatch" ||
+        o.type === "notfound" || o.type === "failed" ||
+        o.resource === "failed" ||
+        o.resource === "notfound" ||
+        o.category === "nomatch" ||
+        o.category === "failed" ||
+        o.category === "notfound" ||
+        o.headerBody === "wiped" ||
+        o.headerBody === "notfound";
+    }
+    // While the step stands incomplete, re-judge the
+    // text outcomes from the live page on every tick:
+    // the framework can swap a field node after the
+    // fill's report went up, and the pane must never
+    // sit on a claim the page contradicts — the RC01
+    // test's "box is still empty" over a full box.
+    // Once nothing blocks, the report stands as
+    // reported; later edits are the user's own.
+    function tickText() {
+      if (!cascade.fillDone || !cascade.outcomes) return;
+      if (!detailsIncomplete()) return;
+      if (!awsDetailsPresent()) return;
+      if (!awsReconcileTextOutcomes(cascade.outcomes)) {
+        return;
+      }
+      var anyFilled = Object.keys(cascade.outcomes)
+        .some(function (k) {
+          return cascade.outcomes[k] === "filled";
+        });
+      if (anyFilled && !cascade.stashCleared) {
+        cascade.stashCleared = true;
+        clearStash();
+      }
+      refreshOutcomeLines();
+      Diag.debug("aws: text outcomes re-judged from " +
+        "the live page");
+    }
+    function tickRadio() {
+      var state = awsRadioStep(guard);
+      if (!state) return;
+      if (guard.outcome) {
+        cascade.preset.resource = guard.outcome;
+      }
+      var line = awsRadioLines(state);
+      if (!line || line === radioLine) return;
+      radioLine = line;
+      // Before the fill, the radio stage speaks for
+      // every state. After it, only a wrong-desk state
+      // (corrected / blocked) may overwrite the fill's
+      // own lines — the guard correcting in silence
+      // would be worse than one that says so.
+      if (!cascade.fillDone ||
+          state === "corrected" || state === "blocked") {
+        showSub2(line);
+      }
+    }
+    function tickCategory() {
+      if (catState === "done" || catState === "working") {
+        return;
+      }
+      if (catState === "verify") {
+        catState = "done";
+        if (awsCategoryShowsEmail()) {
+          cascade.preset.category = "filled";
+          if (!cascade.fillDone) {
+            showSub2("\u2713 Category set to Email");
+          }
+          Diag.debug("aws: category verified — Email " +
+            "is showing");
+        } else {
+          cascade.preset.category = "failed";
+          if (!cascade.fillDone) {
+            showSub2("Set Category to Email \u2014 I " +
+              "couldn't pick it for you");
+          }
+          Diag.debug("aws: category pick did not " +
+            "verify — Email is not showing");
+        }
+        return;
+      }
+      // waiting: fire only when the control is present.
+      if (!awsFindField("category")) return;
+      catState = "working";
+      awsPickSelect("category", /category/i,
+        /^\s*email\s*$/i, awsCategoryTextOk,
+        function (o) {
+          if (o === "filled") {
+            // A picker success is a click, not a
+            // state — verify the displayed value on
+            // the next tick before claiming it.
+            catState = "verify";
+          } else if (o === "already") {
+            catState = "done";
+            cascade.preset.category = "already";
+          } else {
+            catState = "done";
+            cascade.preset.category = o;
+            if (!cascade.fillDone) {
+              showSub2("Set Category to Email \u2014 I " +
+                "couldn't pick it for you");
+            }
+            Diag.debug("aws: category pick outcome " + o);
+          }
+        });
+    }
+    function tickDetails() {
+      if (detailsStarted) return;
+      if (!awsDetailsPresent()) return;
+      detailsStarted = true;
+      Diag.debug("aws: details fields are up — " +
+        "filling");
+      fillAwsDetails(plan, cascade);
+    }
+  }
+
+  // v1.0.91: a text outcome is judged from the LIVE
+  // page, never from the fill pass's cached node. The
+  // RC01 live test (Nov 24 2026) filled the
+  // header-and-body box — the text sat in it, visible
+  // on screen — yet the pane reported the box empty
+  // and claimed the form had cleared it: the wizard's
+  // framework re-rendered after the write and swapped
+  // the textarea node, so the pass's verify read the
+  // detached node's stale value while the live node
+  // carried the text. The fix must not depend on
+  // which node the framework keeps: re-find the field
+  // fresh and read what the page actually holds. Only
+  // "filled" and "wiped" — the two verdicts on OUR
+  // write — are re-judged this way; "already" (the
+  // user's own text), "skipped" (the plan held
+  // nothing) and "notfound" stand as the pass found
+  // them.
+  function awsLiveTextOutcome(kind, outcome) {
+    if (outcome !== "filled" && outcome !== "wiped") {
+      return outcome;
+    }
+    var el = awsFindField(kind);
+    var has = !!(el && String(el.value || "").trim());
+    return has ? "filled" : "wiped";
+  }
+  function awsReconcileTextOutcomes(outcomes) {
+    var changed = false;
+    ["headerBody", "url", "comments"].forEach(
+      function (k) {
+        var now = awsLiveTextOutcome(k, outcomes[k]);
+        if (now !== outcomes[k]) {
+          outcomes[k] = now;
+          changed = true;
+        }
+      });
+    return changed;
+  }
+
+  // The one fill pass over the details fields. Picks
+  // first (type; radio and category arrive as verified
+  // presets from the cascade when it resolved them —
+  // the radio lives on the earlier step and is not
+  // re-searched, a resolved-good category stands, any
+  // other category preset is re-checked live because
+  // the user may have set it after a cascade miss),
+  // then the three text boxes under the never-overwrite
+  // rule, every write verified. It never clicks Next,
+  // never submits, and never touches the
+  // reporter-details step — those fields aren't even
+  // searched for. A direct call with no cascade (the
+  // pre-cascade shape) resolves every pick in-pass.
+  function fillAwsDetails(plan, cascade) {
+    cascade = cascade || {};
+    var preset = cascade.preset || {};
+    var outcomes = {};
+    // Declared before the pick chain runs: the picks
+    // answer synchronously for native controls, and
+    // their callback walks straight into fillText.
+    var TEXT_FIELDS = [
+      { key: "headerBody", value: plan.headerBody },
+      { key: "url", value: plan.url },
+      { key: "comments", value: plan.comments }
+    ];
+    if (preset.resource) {
+      outcomes.resource = preset.resource;
+      afterPicks();
+    } else {
+      var radio = awsFindRadio();
+      if (!radio) {
+        outcomes.resource = "notfound";
+        afterPicks();
+      } else if (radio.checked) {
+        outcomes.resource = "already";
+        afterPicks();
+      } else {
+        try { radio.click(); } catch (e) {}
+        outcomes.resource = radio.checked
+          ? "filled" : "failed";
+        afterPicks();
+      }
+    }
+    function afterPicks() {
+      if (preset.category === "filled" ||
+          preset.category === "already") {
+        outcomes.category = preset.category;
+        pickType();
+        return;
+      }
+      awsPickSelect("category", /category/i,
+        /^\s*email\s*$/i, awsCategoryTextOk,
+        function (o) {
+          outcomes.category = o;
+          pickType();
+        });
+    }
+    function pickType() {
+      awsPickSelect("type", /type of abuse/i,
+        /spam|phishing/i, awsTypeTextOk,
+        function (o2) {
+          outcomes.type = o2;
+          fillText(0);
+        });
+    }
+    function fillText(i) {
+      if (i >= TEXT_FIELDS.length) { finishFill(); return; }
+      var f = TEXT_FIELDS[i];
+      if (!f.value) {
+        outcomes[f.key] = "skipped";
+        fillText(i + 1);
+        return;
+      }
+      var el = awsFindField(f.key);
+      if (!el) {
+        outcomes[f.key] = "notfound";
+        fillText(i + 1);
+        return;
+      }
+      if (String(el.value || "").trim()) {
+        outcomes[f.key] = "already";
+        Diag.debug("aws: " + f.key + " already held " +
+          "text — left alone");
+        fillText(i + 1);
+        return;
+      }
+      setVerified(el, f.value, function (ok) {
+        outcomes[f.key] = ok ? "filled" : "wiped";
+        Diag.debug("aws: " + f.key + " " +
+          (ok ? "filled + verified" : "would not stick"));
+        fillText(i + 1);
+      });
+    }
+    function finishFill() {
+      // v1.0.91: judge the text outcomes from the
+      // live page before reporting any of them (see
+      // awsLiveTextOutcome) — the pass's own verify
+      // reads the node it wrote to, which the form
+      // may have swapped out from under it.
+      awsReconcileTextOutcomes(outcomes);
+      var anyFilled = Object.keys(outcomes).some(
+        function (k) { return outcomes[k] === "filled"; });
+      // The stash is single-use: erase it once a fill
+      // has landed, so a later visit to this form
+      // doesn't refill it from a stale case.
+      if (anyFilled) {
+        clearStash();
+        cascade.stashCleared = true;
+      }
+      var lines = awsOutcomeLines(plan, outcomes);
+      Diag.set("lead", lines.lead);
+      Diag.set("sub1", lines.sub1);
+      Diag.set("sub2", lines.sub2);
+      // v1.0.90: the watch keeps these — restoring the
+      // pane after a Step 2 visit re-shows them, and
+      // the Type retry rewrites them in place when a
+      // late pick lands.
+      cascade.lastLines = lines;
+      cascade.outcomes = outcomes;
+      cascade.typeOutcome = outcomes.type;
+      // The watch stays alive past this point for the
+      // radio guard; this flag is what tells it the
+      // fill's lines now own the pane.
+      cascade.fillDone = true;
+      Diag.debug("aws: details fill pass done");
+    }
+  }
+
+  /* ---------------- Cloudflare abuse form ---------------- */
+
+  // v1.0.92: the Cloudflare lane (Michael's call, Nov 25
+  // 2026). When the message's link host hides behind
+  // Cloudflare and its origin never leaks, the panel's
+  // Link host section offers Cloudflare's own abuse form:
+  // Cloudflare knows the real host, forwards the report
+  // to the hosting provider and the site operator, and
+  // gives the host the origin address. This guide pane
+  // walks that form.
+  //
+  // The discipline is the settled one, unchanged: the
+  // fill covers ONLY the form's evidence boxes (the
+  // Evidence URLs box and the Logs or other evidence
+  // of abuse box). The reporter's name, email and
+  // confirm-email boxes are never searched for, let
+  // alone filled. The form's notification choices —
+  // whether the report, and the reporter's contact
+  // details, get forwarded to the site operator and
+  // the host — are never touched: the guide flags them
+  // in plain words (on a scam case the operator is the
+  // criminal) and the user picks. Submit is never
+  // clicked.
+  //
+  // v1.0.94 (RC05): the owner walked this form live in
+  // his own Firefox with RC04 (Nov 25 2026) and the
+  // walked facts replaced the fixture guesses. The
+  // form's REQUIRED evidence field is "Logs or other
+  // evidence of abuse" (below Evidence URLs; the form
+  // notes it may be released to third parties such as
+  // the Lumen Database). The RC03/RC04 guide instead
+  // aimed at the form's Comments box, which is
+  // OPTIONAL — a user following the guide hit a submit
+  // block on the empty required field. The fill now
+  // targets the logs/evidence box with the lane's
+  // prepared evidence text and leaves Comments for
+  // the user. The form's other walked requirements —
+  // name, email, confirm email, the DSA certification
+  // checkbox, the human check — are the user's own,
+  // exactly as before.
+  //
+  // Every outcome is still judged from the LIVE page
+  // at report time, re-finding each box fresh (the
+  // RC01/RC02 lesson: a form that re-renders swaps
+  // nodes, and a node the fill wrote to proves
+  // nothing later). The pane's status lines are
+  // blockers-first and never claim a fill the live
+  // page doesn't show.
+
+  function isCloudflareHost() {
+    return location.hostname === "abuse.cloudflare.com";
+  }
+
+  // The plan: everything the guide and the fill need,
+  // sliced out of the stash the panel's Cloudflare lane
+  // saved. Pure — the tests drive it directly.
+  function cloudflarePlan(stash) {
+    var cf = (stash && stash.cloudflare) || {};
+    var raw = (cf.urls && cf.urls.length) ? cf.urls
+      : ((stash && stash.urls) || []);
+    var urls = raw.map(function (u) { return String(u); })
+      .filter(function (u) { return !!u; });
+    return {
+      from: (stash && stash.from) || "",
+      subject: (stash && stash.subject) || "",
+      domain: String(cf.domain || ""),
+      category: cf.category === "phishing"
+        ? "phishing" : "general",
+      urls: urls,
+      urlsText: urls.join("\n"),
+      comments: String(cf.comments || ""),
+      evidence: String(cf.evidence || ""),
+      // v1.0.94: what the form's Logs or other evidence
+      // of abuse box takes — the lane's prepared
+      // evidence payload (the panel's combined evidence
+      // text; the description slice alone when no
+      // combined text rode). Abuse facts only, the
+      // same text the pane below offers for hand-paste.
+      evidenceText: String(cf.evidence || cf.comments || "")
+    };
+  }
+
+  // The guide's lines, in reading order: what this form
+  // is, the category call for this case, what Spam
+  // Avenger fills and never fills, and the notification
+  // warning. Pure — the tests drive it directly.
+  function cloudflareGuideLines(plan) {
+    var L = [];
+    L.push("This site's real host is hidden behind " +
+      "Cloudflare. This form is the door: Cloudflare " +
+      "forwards your report to the hosting provider " +
+      "and the site operator, and gives the host the " +
+      "real server address.");
+    if (plan.category === "phishing") {
+      L.push("Category: \u201CPhishing & Malware\u201D — " +
+        "Cloudflare's category for credential theft " +
+        "and brand impersonation. If the form shows a " +
+        "different category, change it to that one.");
+    } else {
+      L.push("Category: this case has no exact " +
+        "Cloudflare category of its own, so " +
+        "\u201CGeneral\u201D — Cloudflare's box for other " +
+        "unlawful or harmful content — is the closest " +
+        "fit. If the page impersonates a brand or " +
+        "takes credentials or payment details, " +
+        "\u201CPhishing & Malware\u201D fits better; change " +
+        "it if so.");
+    }
+    L.push("Spam Avenger fills the form's URLs box " +
+      "and its logs-or-evidence box (\"Logs or other " +
+      "evidence of abuse\" — the form's required " +
+      "evidence field) with the evidence. The form's " +
+      "Comments box is optional and stays yours. Your " +
+      "name and email boxes are yours — Spam Avenger " +
+      "never fills those in, and it never submits " +
+      "the form.");
+    L.push("Cloudflare may share the logs-or-evidence " +
+      "box with third parties, such as the Lumen " +
+      "Database — that is why it holds abuse facts " +
+      "only, never your personal details.");
+    L.push("\u26A0 The notification choices: the form " +
+      "can forward your report to the website " +
+      "operator, and a choice there can include YOUR " +
+      "name and email. On a phishing or scam case the " +
+      "operator is the criminal — do not let the form " +
+      "send your contact details to the operator. " +
+      "Spam Avenger never touches those choices; set " +
+      "them the way you want them before you submit.");
+    return L;
+  }
+
+  // The pane's extra region, in the AWS pane's shape:
+  // the short guide, then the evidence text in a
+  // read-only box with a Copy button — the fallback for
+  // anything the fill couldn't land.
+  function buildCloudflareExtra(plan) {
+    var wrap = document.createElement("div");
+    var guide = document.createElement("div");
+    guide.style.cssText = "margin:0 0 8px;";
+    cloudflareGuideLines(plan).forEach(function (line) {
+      var p = document.createElement("div");
+      p.textContent = line;
+      guide.appendChild(p);
+    });
+    wrap.appendChild(guide);
+    var text = plan.evidenceText;
+    if (text) {
+      var cap = document.createElement("div");
+      cap.style.cssText = "font-weight:700;margin:0 0 4px;";
+      cap.textContent = "Report text (the evidence, " +
+        "if a box needs it pasted by hand):";
+      wrap.appendChild(cap);
+      var ta = document.createElement("textarea");
+      ta.readOnly = true;
+      ta.value = text;
+      ta.style.cssText = "width:100%;height:90px;" +
+        "box-sizing:border-box;font:11px/1.4 monospace;";
+      wrap.appendChild(ta);
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = "Copy the report text";
+      btn.style.cssText = "margin-top:6px;padding:6px " +
+        "12px;font:600 13px sans-serif;cursor:pointer;";
+      btn.addEventListener("click", function () {
+        function done() {
+          btn.textContent = "Copied \u2713";
+          setTimeout(function () {
+            btn.textContent = "Copy the report text";
+          }, 2500);
+        }
+        try { ta.focus(); ta.select(); } catch (e) {}
+        var okCopy = false;
+        try {
+          okCopy = document.execCommand("copy");
+        } catch (e) {}
+        if (okCopy) { done(); return; }
+        if (navigator.clipboard &&
+            navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(ta.value)
+            .then(done, function () {});
+        }
+      });
+      wrap.appendChild(btn);
+    }
+    return wrap;
+  }
+
+  // The form's evidence boxes, found by label. ONLY
+  // these two kinds are ever searched for: the
+  // reporter's name / email / confirm-email boxes are
+  // never looked up, and no checkbox, radio or button
+  // is ever touched — the notification choices and the
+  // submit button are the user's alone.
+  function cfFindField(kind) {
+    if (kind === "evidence") return cfFindEvidenceBox();
+    return cfScanFields(function (label) {
+      return /\burls?\b/i.test(label);
+    });
+  }
+
+  // The Logs or other evidence of abuse box, located
+  // by its label in passes, most specific first (the
+  // walked form, Nov 25 2026: the label reads exactly
+  // "Logs or other evidence of abuse"). The passes are
+  // shaped so they can never land on the Evidence URLs
+  // box (its label carries neither "logs" nor "of
+  // abuse") or on the optional Comments box (neither
+  // either) — the RC04 guide's comments regex matched
+  // loosely and filled the wrong box.
+  function cfFindEvidenceBox() {
+    var byBoth = cfScanFields(function (label) {
+      return /logs/i.test(label) &&
+        /evidence/i.test(label);
+    });
+    if (byBoth) return byBoth;
+    var byPhrase = cfScanFields(function (label) {
+      return /evidence of abuse/i.test(label);
+    });
+    if (byPhrase) return byPhrase;
+    // Last pass: the box's own instruction text (the
+    // label hunt's placeholder fallback surfaces it) —
+    // "Provide a detailed description of the
+    // infringement…", the walked form's words.
+    return cfScanFields(function (label) {
+      return /detailed description of the infringement/i
+        .test(label);
+    });
+  }
+
+  // One pass over the form's text controls — visible,
+  // enabled, writable textareas and text inputs only
+  // (checkboxes, radios and buttons are excluded by
+  // the type filter before any label is read) —
+  // returning the first whose label satisfies the
+  // caller's test.
+  function cfScanFields(labelTest) {
+    var els = document.querySelectorAll("textarea, input");
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      if (!isVisible(el) || el.disabled || el.readOnly) {
+        continue;
+      }
+      if (el.tagName === "INPUT") {
+        var t = (el.getAttribute("type") || "text")
+          .toLowerCase();
+        if (t !== "text" && t !== "url" && t !== "") {
+          continue;
+        }
+      }
+      if (labelTest(controlLabel(el))) return el;
+    }
+    return null;
+  }
+
+  // An outcome judged from the LIVE page: the box is
+  // re-found and re-read at judgement time, never
+  // remembered from the node the fill wrote to.
+  // "filled" only when the live box holds our text;
+  // "user" when it holds something that isn't ours
+  // (typed text is never overwritten); "empty" when
+  // it's there and empty; "notfound" when the form
+  // carries no such box right now.
+  function cfLiveOutcome(plan, kind) {
+    var el = cfFindField(kind);
+    if (!el) return "notfound";
+    var v = String(el.value || "");
+    if (!v.trim()) return "empty";
+    var ours = kind === "urls" ? plan.urlsText
+      : plan.evidenceText;
+    if (!ours) return "user";
+    var probe = kind === "urls" ? (plan.urls[0] || "")
+      : ours.slice(0, 60);
+    if (!probe) return "user";
+    return v.indexOf(probe) !== -1 ? "filled" : "user";
+  }
+
+  // The pane's lines for a settled fill, blockers
+  // first (the RC01 rule): a box the fill couldn't
+  // find leads, and no line claims a fill the live
+  // page didn't just show. Pure — the tests drive it
+  // directly.
+  function cloudflareOutcomeLines(plan, outcomes) {
+    var blockers = [];
+    if (outcomes.urls === "notfound" && plan.urlsText) {
+      blockers.push("I couldn't find the URLs box on " +
+        "this form — paste the links from the box " +
+        "below into it.");
+    }
+    if (outcomes.evidence === "notfound" &&
+        plan.evidenceText) {
+      blockers.push("I couldn't find the form's " +
+        "logs-or-evidence box (\"Logs or other " +
+        "evidence of abuse\" — the form requires " +
+        "it) — the evidence text is in the box " +
+        "below, ready to paste.");
+    }
+    var tail = "Your name and email boxes, the " +
+      "notification choices, and the submit button " +
+      "are yours.";
+    if (blockers.length) {
+      return { lead: blockers[0],
+        sub1: blockers[1] || tail, sub2: "" };
+    }
+    var filled = [];
+    if (outcomes.urls === "filled") {
+      filled.push("URLs box");
+    }
+    if (outcomes.evidence === "filled") {
+      filled.push("logs/evidence box");
+    }
+    var lead;
+    if (filled.length) {
+      lead = "I filled the form's " +
+        filled.join(" and ") +
+        " with the evidence.";
+    } else {
+      lead = "The form's evidence boxes already hold " +
+        "text — I left them exactly as they are.";
+    }
+    return { lead: lead,
+      sub1: "Before you submit, check the " +
+        "notification choices below: don't let the " +
+        "form send your contact details to the site " +
+        "operator.",
+      sub2: tail };
+  }
+
+  function cfConfirmationPresent() {
+    var t = (document.body &&
+      document.body.textContent) || "";
+    return /thank you for your report|report has been submitted|report was submitted|we have received your report|your report has been received/i
+      .test(t);
+  }
+
+  function guideCloudflare(stash) {
+    var payload = (stash && stash.cloudflare) || null;
+    if (!payload) {
+      // The page was opened without the panel's stash
+      // (a typed URL, an expired case): stand down
+      // gracefully, like every lane.
+      Diag.set("lead", "I don't have a case loaded " +
+        "for this form. Open the message in Gmail and " +
+        "use Spam Avenger's Cloudflare button in the " +
+        "Link host section — it brings the report " +
+        "with it.");
+      Diag.debug("cloudflare: no cloudflare payload " +
+        "in the stash — standing down");
+      return;
+    }
+    var plan = cloudflarePlan(stash);
+    Diag.set("lead", "Your Cloudflare report is " +
+      "loaded — walking the form with you.");
+    Diag.set("sub1", plan.from
+      ? "Message from: " + plan.from : "");
+    Diag.set("sub2", "");
+    // A builder function, like every other lane (the
+    // v1.0.88 slip — passing the built node — must not
+    // regress here).
+    Diag.setExtra(function () {
+      return buildCloudflareExtra(plan);
+    });
+    Diag.debug("cloudflare: guide up; watching the form");
+    watchCloudflare(plan);
+  }
+
+  // The watch: a half-second poll under a 15-minute
+  // cap, in the AWS watch's shape but for a one-page
+  // form. Each tick (1) checks for the confirmation —
+  // it outranks everything and ends the watch; (2)
+  // fills any evidence box that stands empty (a box
+  // holding the user's own text is never overwritten;
+  // a box the form cleared on a re-render is refilled,
+  // up to 3 attempts per box); (3) once both boxes
+  // settle, keeps the pane's lines judged from the
+  // live page, rewritten only when they change.
+  function watchCloudflare(plan) {
+    var deadline = Date.now() + 15 * 60 * 1000;
+    var attempts = { urls: 0, evidence: 0 };
+    var working = { urls: false, evidence: false };
+    var linesKey = "";
+    var timer = setInterval(function () {
+      if (Date.now() > deadline) {
+        clearInterval(timer);
+        return;
+      }
+      if (cfConfirmationPresent()) {
+        clearInterval(timer);
+        clearStash();
+        Diag.set("lead", "Cloudflare has your " +
+          "report \u2713");
+        Diag.set("sub1", "Cloudflare forwards it to " +
+          "the hosting provider and the site " +
+          "operator, with the real server address " +
+          "for the host.");
+        Diag.set("sub2", "");
+        Diag.debug("cloudflare: confirmation on " +
+          "screen — watch done");
+        return;
+      }
+      ["urls", "evidence"].forEach(function (kind) {
+        if (working[kind]) return;
+        var want = kind === "urls" ? plan.urlsText
+          : plan.evidenceText;
+        if (!want) return;
+        if (cfLiveOutcome(plan, kind) !== "empty") return;
+        if (attempts[kind] >= 3) return;
+        var el = cfFindField(kind);
+        if (!el) return;
+        working[kind] = true;
+        attempts[kind]++;
+        setVerified(el, want, function () {
+          working[kind] = false;
+        });
+      });
+      var outcomes = {
+        urls: cfLiveOutcome(plan, "urls"),
+        evidence: cfLiveOutcome(plan, "evidence")
+      };
+      var settled = ["urls", "evidence"].every(
+        function (kind) {
+          var want = kind === "urls" ? plan.urlsText
+            : plan.evidenceText;
+          if (!want) return true;
+          var o = outcomes[kind];
+          return o === "filled" || o === "user" ||
+            o === "notfound";
+        });
+      if (settled) {
+        var lines = cloudflareOutcomeLines(plan, outcomes);
+        var key = lines.lead + "|" + lines.sub1;
+        if (key !== linesKey) {
+          linesKey = key;
+          Diag.set("lead", lines.lead);
+          Diag.set("sub1", lines.sub1);
+          Diag.set("sub2", lines.sub2);
+          if (outcomes.urls === "filled" ||
+              outcomes.evidence === "filled") {
+            // The stash is single-use: erase it once
+            // a fill has landed, so a later visit
+            // doesn't refill from a stale case.
+            clearStash();
+          }
+          Diag.debug("cloudflare: outcomes urls=" +
+            outcomes.urls + " evidence=" +
+            outcomes.evidence);
+        }
+      }
+    }, 500);
   }
 })();

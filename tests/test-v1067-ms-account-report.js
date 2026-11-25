@@ -45,13 +45,13 @@ function ok(name, cond, extra) {
 }
 
 // ---------- manifest ----------
-ok("manifest version is 1.0.73", manifest.version === "1.0.86",
+ok("manifest version is 1.0.73", manifest.version === "1.0.87",
   "got " + manifest.version);
 ok("permissions unchanged: storage only",
   JSON.stringify(manifest.permissions) === JSON.stringify(["storage"]));
 ok("host permissions = the set of 17 (the v1.0.72 set of 14 + v1.0.78's legalportal.godaddy.com + v1.0.82's two nameabuse hosts, deliberate — the guide pane's pages, deliberate)",
   Array.isArray(manifest.host_permissions) &&
-  manifest.host_permissions.length === 17);
+  manifest.host_permissions.length === 20);
 
 // ---------- fixtures ----------
 // The Jessica-shaped message (trimmed): protection-pool

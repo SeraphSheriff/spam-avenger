@@ -47,7 +47,7 @@ function count(hay, needle) {
   return hay.split(needle).length - 1;
 }
 
-ok("manifest version stays 1.0.73", manifest.version === "1.0.86",
+ok("manifest version stays 1.0.73", manifest.version === "1.0.87",
   "got " + manifest.version);
 
 // ---------- parity: registrations and pushes ----------
@@ -75,7 +75,7 @@ ok("parity: the domain-lane buttons carry label spans (four " +
   contentSrc.indexOf("var wFormBtnLabel = ") !== -1 &&
   contentSrc.indexOf("var rFormBtnLabel = ") !== -1 &&
   contentSrc.indexOf("var lFormBtnLabel = ") !== -1 &&
-  count(contentSrc, '"class": "sf-btn-label"') === 9);
+  count(contentSrc, '"class": "sf-btn-label"') === 10);
 ok("parity: the form buttons' swaps write only their label spans",
   contentSrc.indexOf("wFormBtn.textContent") === -1 &&
   contentSrc.indexOf("rFormBtn.textContent") === -1 &&

@@ -55,7 +55,7 @@ function ok(name, cond, extra) {
 
 // ---------- manifest ----------
 ok("manifest: version is 1.0.79",
-  manifest.version === "1.0.86");
+  manifest.version === "1.0.87");
 
 // ---------- the pure helpers, extracted + run ----------
 let P = null;

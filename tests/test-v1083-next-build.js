@@ -66,7 +66,7 @@ function ok(name, cond, extra) {
 
 // ---------- manifest ----------
 ok("manifest: version is 1.0.83",
-  manifest.version === "1.0.86");
+  manifest.version === "1.0.87");
 
 // ---------- item 1: the permission check ----------
 const demand = require(path.join(ROOT, "lib", "demand.js"));

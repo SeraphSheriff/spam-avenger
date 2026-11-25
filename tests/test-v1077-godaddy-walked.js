@@ -56,7 +56,7 @@ function ok(name, cond, extra) {
 }
 
 // ---------- manifest ----------
-ok("manifest: version is 1.0.77", manifest.version === "1.0.86");
+ok("manifest: version is 1.0.77", manifest.version === "1.0.87");
 
 // ---------- lib: the lane points at the real form ----------
 const gd = analyze.registrarFormLane({ registrarInfo: {

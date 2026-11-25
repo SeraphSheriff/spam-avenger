@@ -57,9 +57,12 @@ ok("aws link: three field steps, in the form's order",
     return f.box; })));
 ok("aws link: the Comments step states the form's cap",
   aws.linkFields[2].help.indexOf("10,000") !== -1);
-ok("aws mail kit: untouched (fields, no fact, same url)",
-  aws.fields.length === 4 && aws.fact === undefined &&
-  aws.url === "https://repost.aws/knowledge-center/report-aws-abuse");
+// v1.0.88: the mail kit's fields were rewritten from the
+// owner's live walk of the real wizard (six walked steps);
+// the fact flag and the form URL are untouched.
+ok("aws mail kit: walked fields, no fact, same url",
+  aws.fields.length === 6 && aws.fact === undefined &&
+  aws.url === "https://support.aws.amazon.com/#/contacts/report-abuse");
 
 // ---------- the new slices ----------
 const a = {

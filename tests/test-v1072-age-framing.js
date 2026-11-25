@@ -42,7 +42,7 @@ function ok(name, cond, extra) {
   else { fail++; console.log("  FAIL " + name + (extra ? " — " + extra : "")); }
 }
 
-ok("manifest version stays 1.0.73", manifest.version === "1.0.86",
+ok("manifest version stays 1.0.73", manifest.version === "1.0.87",
   "got " + manifest.version);
 
 const REG = "2026-05-06T00:00:00Z";

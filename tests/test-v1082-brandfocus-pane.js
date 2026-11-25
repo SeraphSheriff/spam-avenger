@@ -76,7 +76,7 @@ const flatContent = flatten(contentSrc);
 
 // ---------- manifest ----------
 ok("manifest: version is 1.0.82",
-  manifest.version === "1.0.86");
+  manifest.version === "1.0.87");
 const rfEntry = (manifest.content_scripts || []).filter(
   function (cs) {
     return (cs.js || []).indexOf("reportfill.js") !== -1;
@@ -523,8 +523,17 @@ ok("category: a user already past step 1 (step 2 " +
   watchSeg.indexOf('phase = "details"') !== -1);
 
 // ---------- reportfill: the step-2 fill ----------
+// v1.0.88 narrows this segment: fillNameabuseStep2 is no
+// longer the file's last pass — the AWS section (with its
+// own radio click and text fields) follows it, and these
+// pins are about the nameabuse pass only. The segment now
+// ends where that section begins; the assertions are
+// unchanged.
+const awsSectionAt = reportfillSrc.indexOf(
+  "/* ---------------- AWS abuse-report wizard");
 const fillSeg = fillAt === -1 ? "" :
-  reportfillSrc.slice(fillAt);
+  reportfillSrc.slice(fillAt,
+    awsSectionAt === -1 ? undefined : awsSectionAt);
 ok("fill: the pass plans exactly three fields — " +
    "domain, abuse URL, description (registration " +
    "years and Official Website are not in the plan)",

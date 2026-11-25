@@ -398,7 +398,11 @@ ok("google lane: label + verified form URL",
     "https://support.google.com/code/contact/cloud_platform_report");
 ok("aws lane: label + verified abuse-report URL",
   hints.aws && hints.aws.label === "Amazon AWS" &&
-  hints.aws.url === "https://repost.aws/knowledge-center/report-aws-abuse");
+  hints.aws.url === "https://support.aws.amazon.com/#/contacts/report-abuse");
+ok("aws lane: linkText matches the abuse form URL (v1.0.87: the lane " +
+  "deep-links the form itself, not the re:Post help article)",
+  hints.aws && hints.aws.linkText ===
+    "support.aws.amazon.com/#/contacts/report-abuse");
 ok("azure lane: label + MSRC abuse URL (v1.0.69: parameterized — picks pre-picked; the full kit upgrade is pinned in test-v1069)",
   hints.azure && hints.azure.label === "Microsoft Azure" &&
   hints.azure.url ===

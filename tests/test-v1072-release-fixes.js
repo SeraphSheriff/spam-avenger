@@ -60,7 +60,7 @@ function count(hay, needle) {
 // ---------- version discipline ----------
 ok("manifest version STAYS 1.0.72 (the fixed build IS the " +
    "first public 1.0.72)",
-  manifest.version === "1.0.86", manifest.version);
+  manifest.version === "1.0.87", manifest.version);
 
 // ---------- fix 1: the info-only sections are gone ----------
 ok("no wInfoSec anywhere (website info section deleted)",
@@ -75,9 +75,9 @@ ok("exactly ONE blue sf-sec-website section remains — the " +
 ok("exactly ONE green sf-sec-website section — the ready-to-" +
    "send complaint lane, unchanged",
   count(contentSrc, 'acc.section("sf-sec-website", "sf-btn-green"') === 1);
-ok("exactly ONE blue sf-sec-linkhost section remains — the " +
-   "form lane",
-  count(contentSrc, 'acc.section("sf-sec-linkhost", "sf-btn-blue"') === 1);
+ok("exactly TWO blue sf-sec-linkhost sections — the " +
+   "form lane and v1.0.92's Cloudflare lane",
+  count(contentSrc, 'acc.section("sf-sec-linkhost", "sf-btn-blue"') === 2);
 ok("exactly ONE green sf-sec-linkhost section — the ready-" +
    "to-send complaint lane, unchanged",
   count(contentSrc, 'acc.section("sf-sec-linkhost", "sf-btn-green"') === 1);

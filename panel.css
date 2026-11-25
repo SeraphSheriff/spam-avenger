@@ -73,6 +73,29 @@
   font-size: 15px;
   cursor: pointer;
 }
+/* v1.0.94: the header's version span is the update
+   check's button (the queued version feature) — the
+   dotted underline is the affordance. The result line
+   sits between the red header and the body and takes
+   no room until a check has something to say. */
+#spam-avenger-panel .sf-ver {
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+#spam-avenger-panel .sf-update-line {
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: #3c4043;
+  background: #f1f3f4;
+}
+#spam-avenger-panel .sf-update-line:not(:empty) {
+  padding: 7px 14px;
+  border-bottom: 1px solid #dadce0;
+}
+#spam-avenger-panel .sf-update-line a {
+  color: #1a73e8;
+}
 #spam-avenger-panel .sf-body {
   /* v1.0.46: the body's own flex slot in the card's column — it
      takes whatever height is left under the pinned header and

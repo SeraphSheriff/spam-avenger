@@ -43,7 +43,7 @@ function count(hay, needle) {
   return hay.split(needle).length - 1;
 }
 
-ok("manifest version stays 1.0.73", manifest.version === "1.0.86",
+ok("manifest version stays 1.0.73", manifest.version === "1.0.87",
   "got " + manifest.version);
 
 // ---------- recipientOf / analyze().recipient ----------

@@ -53,12 +53,12 @@ function ok(name, cond, extra) {
 
 // ---------- manifest: this build is 1.0.72 ----------
 ok("manifest version is 1.0.73 (combined build)",
-  manifest.version === "1.0.86", "got " + manifest.version);
+  manifest.version === "1.0.87", "got " + manifest.version);
 ok("permissions unchanged: storage only",
   JSON.stringify(manifest.permissions) === JSON.stringify(["storage"]));
 ok("host permissions = the set of 17 (the v1.0.72 set of 14 + v1.0.78's legalportal.godaddy.com + v1.0.82's two nameabuse hosts, deliberate — the guide pane's pages, deliberate)",
   Array.isArray(manifest.host_permissions) &&
-  manifest.host_permissions.length === 17);
+  manifest.host_permissions.length === 20);
 ok("buildFormFieldEvidence is exported",
   typeof analyze.buildFormFieldEvidence === "function");
 
@@ -81,13 +81,21 @@ ok("google fields: the live form's evidence boxes, in order",
 ok("google field slices: date / capped details / logs",
   JSON.stringify(copies(hints.google)) ===
     JSON.stringify(["date", "googleDetails", "logs"]));
-ok("aws fields: AWS's published requirements, in order",
+// v1.0.88: the AWS map was rewritten from Michael's live
+// walk of the real wizard (Nov 24 2026) — the published-
+// requirements map (incident block / log extracts) described
+// boxes the form does not have. The walked details step:
+// radio choice, Category, Type of abuse, the big header-and-
+// body box, the optional URL box, optional Comments.
+ok("aws fields: the walked wizard's details step, in order",
   JSON.stringify(boxes(hints.aws)) ===
-    JSON.stringify(["Type of abuse", "Source IP and date/time",
-      "Log extracts", "URLs in the message"]));
-ok("aws field slices: pick-only / incident / logs / raw urls",
+    JSON.stringify(["AWS or Amazon.com", "Category",
+      "Type of abuse", "Complete email header and body",
+      "URL of abusive email content", "Comments"]));
+ok("aws field slices: picks / header+body / raw urls / narrative",
   JSON.stringify(copies(hints.aws)) ===
-    JSON.stringify([null, "awsIncident", "logs", "urls"]));
+    JSON.stringify([null, null, null, "headersBody",
+      "urls", "description"]));
 ok("ovh fields: the terms' required elements, in order",
   JSON.stringify(boxes(ovhHint)) ===
     JSON.stringify(["Category", "Location", "Description",
@@ -151,7 +159,7 @@ ok(".sf-btn-label spans: 9 (v1.0.70: back to 2 — the Azure " +
    "stamp parity fix, so their badges survive the label swaps; " +
    "the link-host stamp fix adds its two buttons' spans; " +
    "v1.0.74: the AWS email door's button carries the ninth)",
-  (contentSrc.match(/"class": "sf-btn-label"/g) || []).length === 9);
+  (contentSrc.match(/"class": "sf-btn-label"/g) || []).length === 10);
 
 // ---------- lib: the slices ----------
 // One spam fixture, three forms. Modeled on the real

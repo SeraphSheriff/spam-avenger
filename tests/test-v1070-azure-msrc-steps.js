@@ -59,13 +59,13 @@ const FACT_LINE =
   "This host takes abuse reports through its web form; the form is where a case gets opened.";
 
 // ---------- manifest ----------
-ok("manifest version is 1.0.73", manifest.version === "1.0.86",
+ok("manifest version is 1.0.73", manifest.version === "1.0.87",
   "got " + manifest.version);
 ok("permissions unchanged: storage only",
   JSON.stringify(manifest.permissions) === JSON.stringify(["storage"]));
 ok("host permissions = the set of 17 (the v1.0.72 set of 14 + v1.0.78's legalportal.godaddy.com + v1.0.82's two nameabuse hosts, deliberate — the guide pane's pages, deliberate)",
   Array.isArray(manifest.host_permissions) &&
-  manifest.host_permissions.length === 17);
+  manifest.host_permissions.length === 20);
 
 // ---------- the shipped azure entry (extracted verbatim) ----------
 const m = contentSrc.match(/var HYPER_FORM_HINTS = (\{[\s\S]*?\n  \});/);
@@ -108,12 +108,16 @@ ok("report-notes help names the form's 2,000-character cap",
 // ---------- the other three lanes are unchanged ----------
 const mo = contentSrc.match(/var OVH_FORM_HINT = (\{[\s\S]*?\});/);
 const ovhHint = mo ? vm.runInNewContext("(" + mo[1] + ")") : {};
-ok("google/aws/ovh field maps unchanged",
+// v1.0.88: the AWS map changed deliberately (rewritten from
+// Michael's live walk of the real wizard, Nov 24 2026 — see
+// the v1.0.88 suite); google/ovh are unchanged.
+ok("google/ovh field maps unchanged; aws carries the walked map",
   JSON.stringify(boxes(hints.google)) ===
     JSON.stringify(["Abuse date", "Abuse details", "Additional logs"]) &&
   JSON.stringify(boxes(hints.aws)) ===
-    JSON.stringify(["Type of abuse", "Source IP and date/time",
-      "Log extracts", "URLs in the message"]) &&
+    JSON.stringify(["AWS or Amazon.com", "Category",
+      "Type of abuse", "Complete email header and body",
+      "URL of abusive email content", "Comments"]) &&
   JSON.stringify(boxes(ovhHint)) ===
     JSON.stringify(["Category", "Location", "Description",
       "Logs / technical elements"]));

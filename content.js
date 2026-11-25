@@ -26,6 +26,111 @@
   var BTN_ID = "spam-avenger-btn";
   var PANEL_ID = "spam-avenger-panel";
 
+  // Build label (Michael's rule, Nov 25 2026): while a
+  // build is a release candidate under test, this constant
+  // carries its RC tag and the panel's red header bar shows
+  // it next to the name — "Spam Avenger · RC05 (1.0.94)" —
+  // so a live test can be verified as running the intended
+  // build. (The RC03 Cloudflare-lane test could not be
+  // verified either way: the panel said nothing about
+  // which build was loaded, so a missing lane was
+  // indistinguishable from an older build still running.)
+  // THE PACKAGING STEP SETS THIS ONE CONSTANT per package:
+  // an RC build carries its tag ("RC05"), a published
+  // build carries "" and the header shows just the name
+  // and version. The version beside it is SF_VERSION —
+  // read from the manifest at runtime, never hardcoded,
+  // so the two can never disagree about the build number.
+  var SA_BUILD_LABEL = "";
+
+  // The header's full text, composed from the build
+  // label and the running version (v1.0.94, the queued
+  // version feature — queued-version-check.md): an RC
+  // build reads "Spam Avenger · RC05 (1.0.94)"; a
+  // published build (label "") reads "Spam Avenger ·
+  // 1.0.87" — name and plain version, no parentheses,
+  // no dangling separator. Pure: the tests drive both
+  // modes. showPanel renders the same text as two
+  // spans — the name (with the RC tag) and the version
+  // — because the version span is the clickable half
+  // (the update check below); the two spans' text
+  // concatenates to exactly this string.
+  function saHeaderText(label, version) {
+    if (label) {
+      return "\uD83D\uDEE1\uFE0F Spam Avenger \u00B7 " +
+        label + " (" + version + ")";
+    }
+    return "\uD83D\uDEE1\uFE0F Spam Avenger \u00B7 " +
+      version;
+  }
+
+  // Click-to-check for updates (v1.0.94, the queued
+  // version feature): Firefox gives extensions no
+  // runtime.requestUpdateCheck, so the check reads the
+  // latest release of the project's GitHub repo —
+  // every publish lands there — and compares it with
+  // the running version. Store installs still
+  // auto-update on their own; this is a manual check
+  // for when the user wants to know now.
+  var SA_RELEASES_API =
+    "https://api.github.com/repos/SeraphSheriff/spam-avenger/releases/latest";
+  var SA_AMO_URL =
+    "https://addons.mozilla.org/addon/spam-avenger-for-gmail/";
+  var SA_CHROME_URL =
+    "https://chromewebstore.google.com/detail/gbgcemlglaifhnomdpckccijdajghoaf";
+
+  // Numeric dotted-version compare: -1 when a < b, 0
+  // when equal, 1 when a > b, null when either side
+  // won't parse. A leading "v" (the GitHub tag shape)
+  // is ignored and missing parts count as 0, so
+  // "1.0.9" < "1.0.10" and "v1.0.87" === "1.0.87".
+  // Pure: the tests drive it directly.
+  function saVersionCompare(a, b) {
+    function parts(v) {
+      var raw = String(v == null ? "" : v)
+        .replace(/^v/i, "").split(".");
+      var out = [];
+      for (var i = 0; i < raw.length; i++) {
+        if (!/^\d+$/.test(raw[i])) return null;
+        out.push(parseInt(raw[i], 10));
+      }
+      return out.length ? out : null;
+    }
+    var pa = parts(a), pb = parts(b);
+    if (!pa || !pb) return null;
+    var n = Math.max(pa.length, pb.length);
+    for (var j = 0; j < n; j++) {
+      var x = pa[j] || 0, y = pb[j] || 0;
+      if (x < y) return -1;
+      if (x > y) return 1;
+    }
+    return 0;
+  }
+
+  // The verdict for a check: "update" when the latest
+  // release is newer than the running build, "current"
+  // when they match, "ahead" when the running build is
+  // newer than the latest release (a test build), and
+  // "unknown" when the lookup produced nothing usable
+  // (a failed fetch hands in null) — the pane reports
+  // that one quietly. Pure: the tests drive it.
+  function saUpdateVerdict(running, latestTag) {
+    if (!latestTag) return "unknown";
+    var c = saVersionCompare(running, latestTag);
+    if (c === null) return "unknown";
+    return c < 0 ? "update" : (c > 0 ? "ahead" : "current");
+  }
+
+  // The store page for the browser in use: Firefox
+  // users get the AMO listing, everyone else the
+  // Chrome Web Store item (the extension's only other
+  // storefront). Pure but for the UA string handed in:
+  // the tests drive it directly.
+  function saStoreUrl(userAgent) {
+    return /Firefox\//.test(String(userAgent || ""))
+      ? SA_AMO_URL : SA_CHROME_URL;
+  }
+
   // Form lanes (v1.0.64): some hosts act ONLY on reports filed
   // through their own abuse form — the hyperscaler clouds
   // (lib/analyze.js sets a.hyperscaler for Google Cloud / AWS /
@@ -104,8 +209,8 @@
             "(for example abuse-log.txt), and upload that file.",
           copy: "logs" } ] },
     aws: { label: "Amazon AWS",
-      url: "https://repost.aws/knowledge-center/report-aws-abuse",
-      linkText: "repost.aws/knowledge-center/report-aws-abuse",
+      url: "https://support.aws.amazon.com/#/contacts/report-abuse",
+      linkText: "support.aws.amazon.com/#/contacts/report-abuse",
       // v1.0.69 (combined): per-field steps, mapped from what
       // AWS itself says a report must carry (Trust & Safety
       // reporting FAQ + the report-aws-abuse knowledge-center
@@ -115,32 +220,84 @@
       // The form itself is a script-driven page whose boxes
       // could not be read directly, so these steps follow
       // AWS's published requirements rather than its pixels.
-      fieldsIntro: "The form starts by asking who you " +
-        "are \u2014 your name and email are yours to fill in, " +
-        "and Spam Avenger never prepares them. The steps " +
-        "below cover the evidence AWS asks a report to carry.",
+      // v1.0.88: Michael walked the real form live (Nov 24
+      // 2026) and the published-requirements map was wrong
+      // about the wizard's shape — there is no incident
+      // block and no log-extract box on it. The steps below
+      // are the walked form: an intro page (its orange
+      // sign-in button is for AWS customers; the report
+      // wizard below it is the anonymous path), then the
+      // wizard proper. A reporter-details step exists in
+      // the wizard; those boxes are the user's own and
+      // are never prepared or filled. Since v1.0.88 the
+      // button also stashes the case, and reportfill's
+      // guide pane fills the form on the page itself (the
+      // GoDaddy / nameabuse treatment); these steps stay
+      // as the by-hand path.
+      // v1.0.89: his live test of v1.0.88 corrected the
+      // wizard's shape once more — the first step carries
+      // ONLY the AWS / Amazon.com choice (Next stays
+      // disabled until a pick), and the step then reveals
+      // itself progressively: picking AWS renders the
+      // Category dropdown below the cards, and choosing
+      // Email reveals a Type of abuse dropdown, one big
+      // "Complete email header and body" box, an optional
+      // URL box, and an optional Comments box capped at
+      // 10,000 characters. The steps below now follow
+      // that order: the choice first, the details after.
+      fieldsIntro: "The form opens on an intro page. Its " +
+        "orange sign-in button is for AWS customers \u2014 " +
+        "the abuse report wizard below it is the anonymous " +
+        "path, and Spam Avenger's guide pane opens on the " +
+        "form and walks it with you. A later step asks for " +
+        "your own name and email \u2014 those are yours to " +
+        "fill in, and Spam Avenger never prepares them. " +
+        "The wizard's first step is the AWS or Amazon.com " +
+        "choice by itself \u2014 the guide pane picks AWS " +
+        "there \u2014 and the steps below then cover the " +
+        "details that choice reveals, field by field.",
       fields: [
-        { box: "Type of abuse",
-          help: "Pick the spam / abusive-email option " +
-            "\u2014 AWS routes the report by it. Nothing to " +
-            "paste here.",
+        { box: "AWS or Amazon.com",
+          help: "The wizard's first step is this choice " +
+            "by itself \u2014 pick AWS, then Next. This " +
+            "report is about an AWS resource, not an " +
+            "Amazon.com order; the guide pane picks AWS " +
+            "for you and will switch it back if " +
+            "Amazon.com gets picked. Nothing to paste " +
+            "here.",
           copy: null },
-        { box: "Source IP and date/time",
-          help: "AWS asks for the source IP, the date and " +
-            "time of the incident, and the time zone " +
-            "\u2014 one incident block, dates in ISO 8601.",
-          copy: "awsIncident" },
-        { box: "Log extracts",
-          help: "AWS asks for log extracts that show the " +
-            "activity. For an email, the log is the " +
-            "message's Received line and its full headers.",
-          copy: "logs" },
-        { box: "URLs in the message",
-          help: "For abusive content AWS asks for the " +
-            "specific URLs. These are un-defanged, exactly " +
-            "as they appeared \u2014 a URL box needs the " +
-            "literal addresses.",
-          copy: "urls" } ],
+        { box: "Category",
+          help: "This dropdown appears once AWS is " +
+            "picked. Pick Email \u2014 this report is about " +
+            "a message sent from an AWS address, and " +
+            "picking Email is what reveals the rest of " +
+            "the form. The guide pane sets it for you " +
+            "when it can.",
+          copy: null },
+        { box: "Type of abuse",
+          help: "Pick the spam / phishing option \u2014 AWS " +
+            "routes the report by it. Nothing to paste " +
+            "here; the guide pane picks it when the option " +
+            "matches.",
+          copy: null },
+        { box: "Complete email header and body",
+          help: "The whole message in one paste \u2014 the " +
+            "full headers and the body together, exactly " +
+            "as the form's own helper text asks. The guide " +
+            "pane fills this box for you.",
+          copy: "headersBody" },
+        { box: "URL of abusive email content",
+          help: "Optional. The page the message links to, " +
+            "exactly as it appeared \u2014 un-defanged, like " +
+            "every URL box. The guide pane fills it when " +
+            "the message carries a link.",
+          copy: "urls" },
+        { box: "Comments",
+          help: "Optional \u2014 the form caps this box at " +
+            "10,000 characters. The short version of the " +
+            "report: what arrived, from where, and when. " +
+            "The guide pane fills it for you.",
+          copy: "description" } ],
       // v1.0.73 (queued-guided-form-fields.md): the same
       // form, walked for the LINK-host report \u2014 the kit
       // above covers a sender on AWS; these cover a site
@@ -1804,19 +1961,96 @@
     }
   }
 
+  // The click on the header's version: ask GitHub for
+  // the latest release and report the verdict in the
+  // line under the header (v1.0.94, the queued version
+  // feature). One check at a time; a failed lookup
+  // says so quietly and claims nothing.
+  var sfUpdateChecking = false;
+  function runUpdateCheck(lineEl) {
+    if (sfUpdateChecking) return;
+    sfUpdateChecking = true;
+    clearEl(lineEl);
+    lineEl.textContent = "Checking for updates\u2026";
+    function done() { sfUpdateChecking = false; }
+    function fail() {
+      done();
+      lineEl.textContent = "Couldn't check for " +
+        "updates just now.";
+    }
+    var p;
+    try {
+      p = fetch(SA_RELEASES_API, {
+        headers: { "Accept": "application/vnd.github+json" }
+      });
+    } catch (e) { fail(); return; }
+    Promise.resolve(p).then(function (r) {
+      if (!r || !r.ok) { fail(); return null; }
+      return r.json();
+    }).then(function (data) {
+      if (!data) return; // fail() already reported
+      done();
+      var tag = data.tag_name;
+      var verdict = saUpdateVerdict(SF_VERSION, tag);
+      var latest = String(tag || "").replace(/^v/i, "");
+      clearEl(lineEl);
+      if (verdict === "update") {
+        lineEl.appendChild(document.createTextNode(
+          "Update available: " + latest + " — "));
+        lineEl.appendChild(h("a", {
+          "href": saStoreUrl(
+            (typeof navigator !== "undefined" &&
+              navigator.userAgent) || ""),
+          "target": "_blank", "rel": "noopener"
+        }, "get it from the store"));
+        lineEl.appendChild(
+          document.createTextNode("."));
+      } else if (verdict === "ahead") {
+        lineEl.textContent = "This build (" +
+          SF_VERSION + ") is ahead of the latest " +
+          "release (" + latest + ") — a test build.";
+      } else if (verdict === "current") {
+        lineEl.textContent = "You're up to date — " +
+          SF_VERSION + " is the latest release.";
+      } else {
+        lineEl.textContent = "Couldn't check for " +
+          "updates just now.";
+      }
+    }, fail);
+  }
+
   // Builds the panel shell and returns its .sf-body element.
   function showPanel() {
     closePanel();
     var wrap = document.createElement("div");
     wrap.id = PANEL_ID;
     var card = h("div", { "class": "sf-card" });
+    // v1.0.94: the header is two spans whose text joins
+    // to saHeaderText(SA_BUILD_LABEL, SF_VERSION) — the
+    // name (carrying the RC tag on a test build) and
+    // the version. The version span is the clickable
+    // half: it runs the update check, and the answer
+    // lands in the line under the header.
+    var titleSpan = h("span", null,
+      "\uD83D\uDEE1\uFE0F Spam Avenger" +
+      (SA_BUILD_LABEL ? " \u00B7 " + SA_BUILD_LABEL : ""));
+    var verSpan = h("span", { "class": "sf-ver",
+      "role": "button", "title": "Check for updates" },
+      SA_BUILD_LABEL ? " (" + SF_VERSION + ")"
+        : " \u00B7 " + SF_VERSION);
+    var updateLine = h("div",
+      { "class": "sf-update-line" });
+    verSpan.addEventListener("click", function () {
+      runUpdateCheck(updateLine);
+    });
     var head = h("div", { "class": "sf-head" },
-      h("span", null, "\uD83D\uDEE1\uFE0F Spam Avenger"));
+      h("span", null, titleSpan, verSpan));
     var x = h("button", { "class": "sf-x", "aria-label": "Close" }, "\u2715");
     x.addEventListener("click", closePanel);
     head.appendChild(x);
     var body = h("div", { "class": "sf-body" });
     card.appendChild(head);
+    card.appendChild(updateLine);
     card.appendChild(body);
     wrap.appendChild(card);
     document.body.appendChild(wrap);
@@ -2495,7 +2729,36 @@
             ? "Copied! The form is open \u2014 paste into its details field (Ctrl+V or right-click \u2192 Paste)"
             : "The form is open \u2014 copy the box text above and paste it in";
           setTimeout(function () { formBtnLabel.textContent = origLabel; }, 6000);
-          window.open(formLane.url, "_blank", "noopener");
+          // v1.0.88: the AWS lane also stashes the case
+          // first, so reportfill.js can fill the wizard's
+          // details step on support.aws.amazon.com (the
+          // GoDaddy / nameabuse treatment), through the
+          // same stashThenOpen handoff those lanes use.
+          // The payload is the walked form's own slices:
+          // the complete header and body for the big box,
+          // the message's links for the optional URL box
+          // (v1.0.90: the list rides along and reportfill
+          // picks the first non-image, non-tracker one —
+          // urls[0] here was an image-tracker proxy on
+          // the owner's live walk), and the short facts
+          // narrative for Comments. The lane argument
+          // stays null — this handler records the launch
+          // itself, below. Every other lane opens
+          // immediately, as before.
+          if (formLane === HYPER_FORM_HINTS.aws) {
+            stashThenOpen(formLane.url, function () {}, null, {
+              aws: {
+                headerBody: window.SpamAvenger
+                  .buildFormFieldEvidence(a, "headersBody") || "",
+                urls: (a.urls || []).slice(0, 10)
+                  .map(function (u) { return String(u); }),
+                comments: window.SpamAvenger
+                  .buildFormFieldEvidence(a, "description") || ""
+              }
+            })({});
+          } else {
+            window.open(formLane.url, "_blank", "noopener");
+          }
           // v1.0.66: the form-kit lane IS the complaint lane for
           // these hosts — the evidence was copied and the form
           // opened, so record the launch.
@@ -3171,7 +3434,113 @@
       // (runLaneGating suppresses that duplicate). The three
       // shapes mirror the website section's exactly.
       var lh = a.linkHost;
-      if (a.linkHostHidden) {
+      if (a.linkHostHidden && a.linkCloudflare) {
+        // v1.0.92: the link host hides behind Cloudflare
+        // and its origin never leaked — but Cloudflare
+        // itself is a door. Its abuse form forwards the
+        // report to the hosting provider and the site
+        // operator and gives the host the real server
+        // address; on a confirmed phishing page it can
+        // also put a warning page in front of it. The
+        // lane mirrors the other form lanes: an evidence
+        // box, one blue button that copies it, stashes
+        // the case and opens the form, and reportfill's
+        // guide pane on abuse.cloudflare.com fills the
+        // form's evidence boxes (never the reporter's
+        // details, never the notification choices, never
+        // submit).
+        var cfSec = acc.section("sf-sec-linkhost", "sf-btn-blue",
+          "Link host — report via Cloudflare");
+        badgeTargets.linkhost = { els: [cfSec.toggle] };
+        placeAbovePid(cfSec);
+        var cfw = h("div", { "class": "sf-complaint" });
+        var cfUrl0 = window.SpamAvenger.primaryLink
+          ? window.SpamAvenger.primaryLink(a) : null;
+        cfw.appendChild(h("p", { "class": "sf-note" },
+          "The page this message's link leads to — " +
+          (cfUrl0 || a.linkCloudflare.host) +
+          " — sits behind Cloudflare. Cloudflare hides " +
+          "the company really hosting it, so a hosting " +
+          "complaint can't be delivered to that company. " +
+          "But Cloudflare knows who the host is: its " +
+          "abuse form forwards your report to the hosting " +
+          "provider and the site operator, and gives the " +
+          "host the real server address. Your report " +
+          "details are in the box below. The button " +
+          "copies them to your clipboard and opens the " +
+          "Cloudflare abuse form, and the guide on the " +
+          "form fills its evidence boxes for you."));
+        cfw.appendChild(h("p", { "class": "sf-note" },
+          "One choice on that form is yours alone: " +
+          "whether Cloudflare may pass your contact " +
+          "details to the site operator. The guide on " +
+          "the form flags it — read it before you submit."));
+        cfw.appendChild(h("b", null,
+          "Form evidence — paste into the Cloudflare " +
+          "abuse form"));
+        var cfComments = window.SpamAvenger
+          .buildFormFieldEvidence(a, "description") || "";
+        var cfUrls = (a.urls || []).slice(0, 10)
+          .map(function (u) { return String(u); });
+        var cfEvidence = (cfUrls.length
+            ? "URLs in the message:\n" + cfUrls.join("\n") +
+              "\n\n" : "") + cfComments;
+        var cfEta = h("textarea", { id: "sf-cf-evidence" });
+        cfEta.readOnly = true;
+        cfEta.value = cfEvidence;
+        cfw.appendChild(cfEta);
+        var cfBtnLabel = h("span", { "class": "sf-btn-label" },
+          "Copy evidence & open the Cloudflare abuse form");
+        var cfBtn = h("button", { id: "sf-open-cf-form",
+          "class": "sf-btn-blue", "type": "button" }, cfBtnLabel);
+        badgeTargets.linkhost.els.push(cfBtn);
+        cfBtn.addEventListener("click", function () {
+          var copied = false;
+          try {
+            cfEta.focus();
+            cfEta.select();
+            copied = document.execCommand("copy");
+          } catch (e) {}
+          if (!copied && navigator.clipboard) {
+            navigator.clipboard.writeText(cfEta.value)
+              .catch(function () {});
+            copied = true; // best-effort; text stays selected
+          }
+          var origLabel = cfBtnLabel.textContent;
+          cfBtnLabel.textContent = copied
+            ? "Copied! The form is open — the guide there " +
+              "fills its evidence boxes"
+            : "The form is open — copy the box text above " +
+              "and paste it in";
+          setTimeout(function () {
+            cfBtnLabel.textContent = origLabel;
+          }, 6000);
+          // The category is read at click time, when the
+          // classification has settled: a fraud-bucket
+          // message (credential phish, brand impersonation)
+          // opens Cloudflare's phishing form; anything
+          // else opens the form's front door and the
+          // guide names the closest category there.
+          var cfPhish = a.bucket === "fraud";
+          var cfFormUrl = cfPhish
+            ? "https://abuse.cloudflare.com/phishing"
+            : "https://abuse.cloudflare.com/";
+          stashThenOpen(cfFormUrl, function () {}, null, {
+            cloudflare: {
+              urls: cfUrls,
+              comments: cfComments,
+              evidence: cfEvidence,
+              category: cfPhish ? "phishing" : "general",
+              domain: a.linkCloudflare.host || ""
+            }
+          })({});
+          recordLaunched("linkhost");
+          applyLaunchedBadge("linkhost", Date.now());
+        });
+        cfw.appendChild(
+          h("div", { "class": "sf-actions" }, cfBtn));
+        cfSec.panel.appendChild(cfw);
+      } else if (a.linkHostHidden) {
         placeGateNote("Link host complaint:",
           window.SpamAvenger.HOST_HIDDEN_EXPLANATION);
       } else if (lh && lh.ip) {
@@ -4427,7 +4796,50 @@
               .then(function (originIp) {
                 if (!originIp) {
                   a.linkHostHidden = true;
-                  return gate;
+                  // v1.0.92: the hidden verdict gets one
+                  // more question — is the front door
+                  // Cloudflare? Its abuse form forwards
+                  // the report to the real host, so a
+                  // Cloudflare-fronted link host is not a
+                  // dead end: the panel offers that form
+                  // (Michael's call, Nov 25 2026 — the
+                  // v2.hocnfl.com luxury-bags message,
+                  // whose host Spam Avenger could only
+                  // call hidden). Best-effort: any failure
+                  // leaves the plain hidden verdict
+                  // exactly as it was.
+                  // v1.0.93: the decision runs through
+                  // SA.cloudflareViaFor(info, verdict) —
+                  // the address websiteHostFor already
+                  // resolved for this host (info.ip) can
+                  // settle the question on its own, so a
+                  // silent failure of the fresh DNS check
+                  // at the end of this long chain can no
+                  // longer veto the lane (the RC03 live
+                  // miss: hidden note, no lane, on this
+                  // very message). The fresh verdict
+                  // still speaks first when it answers.
+                  var decideCf = function (v) {
+                    var via = SA.cloudflareViaFor
+                      ? SA.cloudflareViaFor(info, v)
+                      : (v && v.fronted
+                          ? (v.via || "ip") : null);
+                    if (via) {
+                      a.linkCloudflare = {
+                        host: linkHostName || linkDomain,
+                        domain: linkDomain,
+                        via: via
+                      };
+                    }
+                    return gate;
+                  };
+                  if (SA.cloudflareFrontedFor) {
+                    return SA.cloudflareFrontedFor(
+                        linkHostName || linkDomain)
+                      .catch(function () { return null; })
+                      .then(decideCf);
+                  }
+                  return decideCf(null);
                 }
                 return SA.websiteHostForIp(linkDomain, originIp)
                   .then(function (i2) {
@@ -4734,6 +5146,22 @@
             // kits the same way — null for every other
             // lane, ignored by reportfill there.
             nameabuse: (extra && extra.nameabuse) || null,
+            // v1.0.88: the AWS form payload (complete
+            // header and body, first payload link, short
+            // facts narrative for Comments), supplied by
+            // the AWS hyperscaler kit the same way — null
+            // for every other lane, ignored by reportfill
+            // there.
+            aws: (extra && extra.aws) || null,
+            // v1.0.92: the Cloudflare form payload (the
+            // message's URLs, the short facts narrative
+            // for the comments box, the composed evidence
+            // text for the pane's copy box, the category
+            // the button picked, the fronted host),
+            // supplied by the link host's Cloudflare lane
+            // the same way — null for every other lane,
+            // ignored by reportfill there.
+            cloudflare: (extra && extra.cloudflare) || null,
             savedAt: Date.now()
           } }, function () {
             // v1.0.31: the v1.0.30 callback never checked lastError,
