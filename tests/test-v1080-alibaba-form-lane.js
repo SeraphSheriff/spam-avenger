@@ -55,7 +55,7 @@ function ok(name, cond, extra) {
 }
 
 // ---------- manifest ----------
-ok("manifest: version is 1.0.80", manifest.version === "1.0.84");
+ok("manifest: version is 1.0.80", manifest.version === "1.0.86");
 ok("manifest: no reportfill wiring for alibabacloud " +
    "(the form is unwalked — kit + link only)",
   JSON.stringify(manifest).indexOf("alibabacloud") === -1 &&

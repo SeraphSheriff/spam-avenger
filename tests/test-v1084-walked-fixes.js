@@ -68,7 +68,7 @@ const flatContent = flatten(contentSrc);
 const flatReportfill = flatten(reportfillSrc);
 
 ok("manifest: version is 1.0.84",
-  manifest.version === "1.0.84");
+  manifest.version === "1.0.86");
 
 // ---------- item 1: extraction of the real code ----------
 function extractFn(src, name) {

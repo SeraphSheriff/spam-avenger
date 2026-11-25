@@ -60,7 +60,7 @@ function count(hay, needle) {
 // ---------- version discipline ----------
 ok("manifest version STAYS 1.0.72 (the fixed build IS the " +
    "first public 1.0.72)",
-  manifest.version === "1.0.84", manifest.version);
+  manifest.version === "1.0.86", manifest.version);
 
 // ---------- fix 1: the info-only sections are gone ----------
 ok("no wInfoSec anywhere (website info section deleted)",

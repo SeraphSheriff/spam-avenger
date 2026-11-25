@@ -1930,6 +1930,27 @@
 
   function renderResult(body, a) {
     clearEl(body);
+
+    // Public 1.0.72 release (internal build .73): the
+    // paste-mode warning (queued-registrar-paste-mode.md
+    // item 2) — when a lane's complaint will open in paste
+    // mode, its section says so BEFORE the click, next to
+    // the button, so the user never discovers paste mode
+    // inside the compose. The prediction runs the same fit
+    // the click will run (fitGivenComplaint, same account,
+    // same complaint object), so the warning and the click
+    // can never disagree.
+    function pasteWarnEl(complaint) {
+      var plan = null;
+      try {
+        plan = window.SpamAvenger.fitGivenComplaint(
+          accountIndex(), complaint);
+      } catch (e) {}
+      if (!plan || plan.mode !== "paste") return null;
+      return h("p", { "class": "sf-note sf-paste-warn" },
+        window.SpamAvenger.PASTE_MODE_WARNING);
+    }
+
     // v1.0.36: the info block (meta grid, makeup callout, Red flags)
     // starts collapsed behind a toggle — good info, but it buries the
     // action buttons for a non-technical user. The panel opens focused
@@ -2898,25 +2919,6 @@
           h("b", null, label), " " + text);
         addBlockedNote(n);
         return n;
-      }
-      // Public 1.0.72 release (internal build .73): the
-      // paste-mode warning (queued-registrar-paste-mode.md
-      // item 2) — when a lane's complaint will open in paste
-      // mode, its section says so BEFORE the click, next to
-      // the button, so the user never discovers paste mode
-      // inside the compose. The prediction runs the same fit
-      // the click will run (fitGivenComplaint, same account,
-      // same complaint object), so the warning and the click
-      // can never disagree.
-      function pasteWarnEl(complaint) {
-        var plan = null;
-        try {
-          plan = window.SpamAvenger.fitGivenComplaint(
-            accountIndex(), complaint);
-        } catch (e) {}
-        if (!plan || plan.mode !== "paste") return null;
-        return h("p", { "class": "sf-note sf-paste-warn" },
-          window.SpamAvenger.PASTE_MODE_WARNING);
       }
       if (a.spoofDomainSuppressed) {
         // Public 1.0.72 release (internal build .73): the

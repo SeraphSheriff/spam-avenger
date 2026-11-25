@@ -66,7 +66,7 @@ function ok(name, cond, extra) {
 }
 
 // ---------- manifest: no version bump, no new hosts ----------
-ok("manifest version stays 1.0.73", manifest.version === "1.0.84",
+ok("manifest version stays 1.0.73", manifest.version === "1.0.86",
   "got " + manifest.version);
 ok("host_permissions = the set of 17 (the v1.0.72 set of 14 + v1.0.78's legalportal.godaddy.com + v1.0.82's two nameabuse hosts, deliberate — the guide pane's pages)",
   manifest.host_permissions.length === 17,

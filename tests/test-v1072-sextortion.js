@@ -47,7 +47,7 @@ function ok(name, cond, extra) {
   else { fail++; console.log("  FAIL " + name + (extra ? " — " + extra : "")); }
 }
 
-ok("manifest version stays 1.0.73", manifest.version === "1.0.84",
+ok("manifest version stays 1.0.73", manifest.version === "1.0.86",
   "got " + manifest.version);
 
 // ---------- detectSextortion (pure) ----------

@@ -66,7 +66,7 @@ function ok(name, cond, extra) {
 
 // ---------- manifest ----------
 ok("manifest: version is 1.0.78",
-  manifest.version === "1.0.84");
+  manifest.version === "1.0.86");
 const rfEntry = (manifest.content_scripts || []).filter(
   function (cs) {
     return (cs.js || []).join(" ").indexOf("reportfill") !== -1;

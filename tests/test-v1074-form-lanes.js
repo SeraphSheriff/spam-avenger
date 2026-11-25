@@ -62,7 +62,7 @@ function ok(name, cond, extra) {
 function count(src, sub) { return src.split(sub).length - 1; }
 
 // ---------- manifest ----------
-ok("manifest: version is 1.0.74", manifest.version === "1.0.84");
+ok("manifest: version is 1.0.74", manifest.version === "1.0.86");
 
 // ---------- (1)-(4) lib: the four new lanes ----------
 const lane = analyze.registrarFormLane;

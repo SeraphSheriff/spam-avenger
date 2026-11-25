@@ -90,7 +90,7 @@ function ok(name, cond, extra) {
 }
 
 // ---------- manifest ----------
-ok("manifest: version is 1.0.81", manifest.version === "1.0.84");
+ok("manifest: version is 1.0.81", manifest.version === "1.0.86");
 
 // ---------- lib: the lane ----------
 const lane = analyze.registrarFormLane;

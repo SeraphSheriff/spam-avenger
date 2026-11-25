@@ -76,7 +76,7 @@ const flatContent = flatten(contentSrc);
 
 // ---------- manifest ----------
 ok("manifest: version is 1.0.82",
-  manifest.version === "1.0.84");
+  manifest.version === "1.0.86");
 const rfEntry = (manifest.content_scripts || []).filter(
   function (cs) {
     return (cs.js || []).indexOf("reportfill.js") !== -1;

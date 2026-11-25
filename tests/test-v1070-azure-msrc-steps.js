@@ -59,7 +59,7 @@ const FACT_LINE =
   "This host takes abuse reports through its web form; the form is where a case gets opened.";
 
 // ---------- manifest ----------
-ok("manifest version is 1.0.73", manifest.version === "1.0.84",
+ok("manifest version is 1.0.73", manifest.version === "1.0.86",
   "got " + manifest.version);
 ok("permissions unchanged: storage only",
   JSON.stringify(manifest.permissions) === JSON.stringify(["storage"]));
