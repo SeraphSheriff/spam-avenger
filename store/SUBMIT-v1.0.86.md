@@ -1,6 +1,6 @@
 # Spam Avenger for Gmail — v1.0.86 store submission sheet
 
-Prepared 2026-11-24. v1.0.86 is a one-bug fix release. It is also the sync release for the store version numbers: Firefox publishes it as 1.0.86 (incrementing from its live 1.0.85), and Chrome publishes it as 1.0.86 as well, jumping from 1.0.75 so both stores carry the same published number from this release on. The internal build number and the published numbers agree for once, by the owner's direction.
+Prepared 2026-11-24. v1.0.86 is a one-bug fix release. Firefox publishes it as 1.0.86 (incrementing from its live 1.0.85), so the internal build number and the Firefox published number agree for once. Chrome is NOT part of this publish: it stays at 1.0.75 (pending review) with 1.0.74 live. The store-number sync (Chrome jumping to meet Firefox's number) is deferred to the next Chrome publish, whenever the owner calls one.
 
 ## Where things stand
 
@@ -12,7 +12,7 @@ Prepared 2026-11-24. v1.0.86 is a one-bug fix release. It is also the sync relea
 ## Submission status
 
 - **Firefox AMO:** v1.0.86 submitted Nov 24, 2026 (the increment from live 1.0.85).
-- **Chrome Web Store:** v1.0.86 submitted Nov 24, 2026 (jumped from 1.0.75 to sync the stores).
+- **Chrome Web Store:** not part of this publish. No v1.0.86 package was submitted; the store still carries 1.0.74 live with 1.0.75 pending review (verified on the dashboard Nov 24, 2026).
 - **GitHub:** this push (v1.0.86 source, tests, and this note).
 
 ## Notes
