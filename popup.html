@@ -26,10 +26,24 @@
   .sa-df-save:hover { background: #188038; }
   .sa-df-save:disabled { background: #9aa0a6; cursor: default; }
   .sa-df-status { color: #5f6368; font-size: 11px; margin: 6px 0 0; }
+  /* v1.0.83: the Gmail-access warning (lib/demand.js fills the
+     slot only when the permission check comes back ungranted;
+     granted or uncheckable leaves it empty and invisible). */
+  .sa-perm-warn { background: #fce8e6; border: 1px solid #c0392b;
+    border-radius: 8px; padding: 10px 12px; margin: 0 0 10px; }
+  .sa-perm-warn p { margin: 0 0 8px; }
+  .sa-perm-ok { background: #e6f4ea; border-color: #1e8e3e; }
+  .sa-perm-ok p { margin: 0; }
+  .sa-perm-btn { background: #c0392b; color: #fff; border: none;
+    border-radius: 8px; padding: 8px 14px; font-size: 13px;
+    font-weight: 600; cursor: pointer; }
+  .sa-perm-btn:hover { background: #a93226; }
+  .sa-perm-btn:disabled { background: #9aa0a6; cursor: default; }
 </style>
 </head>
 <body>
   <h1>🛡️ Spam Avenger for Gmail</h1>
+  <div id="sa-permission-slot"></div>
   <p>One click traces who <i>really</i> sent a spam email and writes the abuse complaint for you.</p>
   <ol>
     <li>Open a spam email in Gmail.</li>
@@ -45,7 +59,7 @@
   <p class="fine">Stored only in your browser, used only to fill in deletion demands you draft.</p>
   <p class="fine">Nothing is sent automatically. Everything runs in your browser;
   the only lookups are the spammer's IP (RDAP + reverse DNS).
-  Free, no account, no config. Desktop Chrome / Edge / Brave.</p>
+  Free, no account, no config. Desktop Chrome, Edge, Brave and Firefox.</p>
   <p class="fine"><a href="https://github.com/SeraphSheriff/spam-avenger" target="_blank">GitHub</a></p>
   <script src="lib/demand.js"></script>
 </body>

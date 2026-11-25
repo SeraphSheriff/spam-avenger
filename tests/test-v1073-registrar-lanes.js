@@ -111,9 +111,14 @@ const w1 = lane({ registrarInfo: {
   registrarAbuse: "abuse@kh86.cn" } });
 ok("wanshang: the RDAP name matches",
   !!w1 && w1.label === "Wanshang" && w1.kit === "wanshang");
-ok("wanshang: the form is the nameabuse platform",
-  !!w1 && w1.url === "https://ws.nameabuse.net/" &&
-  w1.linkText === "ws.nameabuse.net");
+// v1.0.82 narrows this pin: Wanshang's lane gets the
+// same deep link BrandFocus's does — the complaint
+// form itself (submit.php on the shared platform),
+// not the platform homepage.
+ok("wanshang: the form is the nameabuse platform's " +
+   "complaint form itself (v1.0.82 deep link)",
+  !!w1 && w1.url === "https://ws.nameabuse.net/submit.php" &&
+  w1.linkText === "ws.nameabuse.net/submit.php");
 ok("wanshang: the description cap is the form's own 2,000",
   !!w1 && w1.descriptionCap === 2000,
   "got " + (w1 && w1.descriptionCap));
@@ -122,7 +127,7 @@ const w2 = lane({ registrarInfo: {
   registrarAbuse: "abuse@kh86.cn" } });
 ok("wanshang: the abuse-contact domain alone matches " +
    "(the field case: a sister company's name, kh86.cn desk)",
-  !!w2 && w2.url === "https://ws.nameabuse.net/");
+  !!w2 && w2.url === "https://ws.nameabuse.net/submit.php");
 ok("wanshang: a lookalike domain does not match",
   lane({ registrarInfo: { registrar: "Example Registrar",
     registrarAbuse: "abuse@kh86.cn.evil.example" } }) === null &&
@@ -183,20 +188,30 @@ ok("content: the kit render branches on the lane's kit",
 ok("content: the Wanshang button + heading name the form",
   contentSrc.indexOf('"Open the Wanshang abuse form"') !== -1 &&
   contentSrc.indexOf('"Form evidence \\u2014 paste into the Wanshang "') !== -1);
-ok("content: the Wanshang guide carries the field facts " +
-   "(code gate, URL rule, 2,000 cap, WSABUSE- number)",
-  contentSrc.indexOf("6-digit code, good for") !== -1 &&
-  contentSrc.indexOf("must point at the") !== -1 &&
-  contentSrc.indexOf("caps at 2,000") !== -1 &&
+ok("content: v1.0.84 \u2014 the Wanshang steps carry " +
+   "its ACTION facts (the complainant-step code and " +
+   "the WSABUSE- number); the background facts (URL " +
+   "rule lecture, 2,000 cap, Track Complaint) are cut",
+  contentSrc.indexOf("6-digit code it emails you") !== -1 &&
+  contentSrc.indexOf("valid for ") !== -1 &&
   contentSrc.indexOf("WSABUSE-") !== -1 &&
-  contentSrc.indexOf("Track Complaint page") !== -1);
-ok("content: the July Name guide and button stand untouched",
+  contentSrc.indexOf("Track Complaint page") === -1);
+ok("content: the July Name steps and button stand " +
+   "(v1.0.83 slim shape \u2014 screenshot step, JY number)",
   contentSrc.indexOf('"Open the July Name abuse form"') !== -1 &&
-  contentSrc.indexOf("A screenshot is required") !== -1 &&
+  contentSrc.indexOf("Attach a screenshot that clearly shows") !== -1 &&
   contentSrc.indexOf("it starts with JY") !== -1);
+// v1.0.82 narrows this pin: content.js now carries the
+// nameabuse STASH plumbing (the pane payload the
+// registrar button hands reportfill), so the word
+// itself legitimately appears there — what must stay
+// lib-only is the platform URL: the panel links
+// whatever the lane entry says, never a hardcoded
+// nameabuse address.
 ok("lib: the nameabuse URL lives in the lib lane, not the panel",
   libSrc.indexOf("https://ws.nameabuse.net/") !== -1 &&
-  contentSrc.indexOf("nameabuse") === -1);
+  contentSrc.indexOf("https://ws.nameabuse.net") === -1 &&
+  contentSrc.indexOf("https://zy.nameabuse.net") === -1);
 
 console.log("\n" + pass + " passed, " + fail + " failed");
 process.exit(fail ? 1 : 0);

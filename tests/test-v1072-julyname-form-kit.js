@@ -54,7 +54,7 @@ function ok(name, cond, extra) {
   else { fail++; console.log("  FAIL " + name + (extra ? " — " + extra : "")); }
 }
 
-ok("manifest version stays 1.0.73", manifest.version === "1.0.74",
+ok("manifest version stays 1.0.73", manifest.version === "1.0.84",
   "got " + manifest.version);
 
 // ---------- registrarFormLane (pure) ----------
@@ -152,11 +152,18 @@ ok("panel: the evidence box carries the registrar evidence id",
   contentSrc.indexOf('"sf-registrar-evidence"') !== -1);
 ok("panel: the button label is exact",
   contentSrc.indexOf('"Open the July Name abuse form"') !== -1);
+// v1.0.80 narrows this pin the way v1.0.74 narrowed the
+// hyperscaler kit's: the gate gained a second term for
+// the one lane whose desk still reads email (Alibaba
+// Cloud's emailStays). Under July Name — no emailStays —
+// the gate reduces to the original !regFormLane and the
+// email blocks stay off; the pin now checks the gate's
+// current shape.
 ok("panel: the email blocks are gated off under the form lane",
   contentSrc.indexOf(
-    "if (!regFormLane && ri.registrarAbuse)") !== -1 &&
+    "if ((!regFormLane || regEmailStays) && ri.registrarAbuse)") !== -1 &&
   contentSrc.indexOf(
-    "if (!regFormLane && a.registrarComplaint)") !== -1);
+    "if ((!regFormLane || regEmailStays) && a.registrarComplaint)") !== -1);
 const btnAt = contentSrc.indexOf('"sf-open-registrar-form"');
 const btnTail = btnAt === -1 ? "" : contentSrc.slice(btnAt, btnAt + 2600);
 ok("panel: the form button records the registrar lane launched",
@@ -180,89 +187,73 @@ ok("panel: the Gmail compose button still exists for email lanes",
 // screenshot, which is REQUIRED, not optional. The guide
 // is panel text only — it must never reach the copied
 // evidence.
-ok("guide: the kit note carries the field guide",
-  contentSrc.indexOf('"Walking their form:"') !== -1);
-ok("guide: the translate heads-up is there (Chinese form, " +
-   "Firefox's address-bar translate icon, right-click path)",
-  contentSrc.indexOf("the form is in Chinese") !== -1 &&
-    contentSrc.indexOf("translate") !== -1 &&
-    contentSrc.indexOf("the icon at the right") !== -1 &&
-    contentSrc.indexOf("end of the address bar") !== -1 &&
-    contentSrc.indexOf("right-click the") !== -1 &&
-    contentSrc.indexOf("Translate Page") !== -1);
-ok("guide: the identity choice is named — pick Personal",
+ok("guide: v1.0.83 \u2014 the July Name steps live in " +
+   "the ONE merged actions box (regActionsBox), not a " +
+   "note + field-guide pair",
+  contentSrc.indexOf("function regActionsBox(kit, lane)") !== -1 &&
+    contentSrc.indexOf('kit === "julyname"') !== -1 &&
+    contentSrc.indexOf('"Walking their form:"') === -1);
+ok("guide: the translate heads-up survives the " +
+   "haircut (Chinese form, browser translate button, " +
+   "right end of the address bar)",
+  contentSrc.indexOf("If the form opens in Chinese, translate") !== -1 &&
+    contentSrc.indexOf("right end of the address bar") !== -1 &&
+    contentSrc.indexOf("right-click the") === -1);
+ok("guide: the identity choice is named \u2014 pick Personal",
   contentSrc.indexOf("who you are, choose") !== -1 &&
     contentSrc.indexOf("Personal.") !== -1);
 ok("guide: the 6-digit email code round trip is named " +
-   "(Send code), and owned by the registrar, not the addon",
+   "(Send code) \u2014 July Name's OWN walked code step",
   contentSrc.indexOf("Send code") !== -1 &&
-    contentSrc.indexOf("6-digit code") !== -1 &&
-    contentSrc.indexOf("registrar's gate, not Spam " +
-      "Avenger's") !== -1);
-ok("guide: the empty-code scolding is decoded — \u201CIt can't " +
-   "be empty\u201D means the code, wherever it pops up",
-  contentSrc.indexOf("\\u201CIt can't be empty\\u201D") !== -1 &&
-    contentSrc.indexOf("unrelated field") !== -1 &&
-    contentSrc.indexOf("means the code") !== -1);
+    contentSrc.indexOf("6-digit code") !== -1);
+ok("guide: v1.0.83 \u2014 the empty-code scolding decode " +
+   "is background and is CUT (the haircut, pinned)",
+  contentSrc.indexOf("It can't be empty") === -1 &&
+    contentSrc.indexOf("unrelated field") === -1);
 ok("guide: the first report-type box is fraud / phishing email",
-  contentSrc.indexOf("check the first box") !== -1 &&
+  contentSrc.indexOf("For the report type, check the first") !== -1 &&
     contentSrc.indexOf("fraud / phishing email") !== -1);
 ok("guide: the second box (fraudulent phishing / counterfeit " +
    "websites) is offered for the fake-store case",
-  contentSrc.indexOf("check the second box") !== -1 &&
-    contentSrc.indexOf("(fraudulent phishing / counterfeit " +
-      "websites)") !== -1);
-ok("guide: the domain field takes the domain alone, and the " +
-   "link field the link as a normal https address, copied " +
-   "from the copied text",
-  contentSrc.indexOf("The domain field takes the reported " +
-    "domain") !== -1 &&
-    contentSrc.indexOf("link field") !== -1 &&
-    contentSrc.indexOf("normal https address") !== -1 &&
-    contentSrc.indexOf("copies already carries the link") !== -1);
+  contentSrc.indexOf("second box (fraudulent phishing /") !== -1 &&
+    contentSrc.indexOf("counterfeit websites) too") !== -1);
+ok("guide: the description step pastes the copied " +
+   "report and names the cap the kit builds to",
+  contentSrc.indexOf("Paste the copied report into the") !== -1 &&
+    contentSrc.indexOf("1,000-character cap") !== -1);
+ok("guide: v1.0.83 \u2014 the per-field domain/link " +
+   "coaching is CUT; the copied evidence carries those " +
+   "values itself",
+  contentSrc.indexOf("The domain field takes the reported") === -1 &&
+    contentSrc.indexOf("normal https address") === -1);
 ok("guide: the legal-website field means the impersonated " +
    "brand's real website, www.-shaped, and is required",
-  contentSrc.indexOf("\\u201Clegal website\\u201D field wants") !== -1 &&
+  contentSrc.indexOf("\\u201Clegal website\\u201D field, put") !== -1 &&
     contentSrc.indexOf("the real website of the brand the " +
       "spam is") !== -1 &&
     contentSrc.indexOf("impersonating") !== -1 &&
     contentSrc.indexOf("www.brand.com") !== -1 &&
-    contentSrc.indexOf("a required field") !== -1);
-ok("guide: the description field's hard cap is named, with " +
-   "the reason the copied text is short",
-  contentSrc.indexOf("The description field has a hard cap") !== -1 &&
-    contentSrc.indexOf("1,000 characters") !== -1 &&
-    contentSrc.indexOf("the button copies is short") !== -1 &&
-    contentSrc.indexOf("exactly as copied") !== -1);
-ok("guide: the screenshot is REQUIRED (red asterisk), must " +
-   "show the domain and the date/time",
-  contentSrc.indexOf("A screenshot is required") !== -1 &&
-    contentSrc.indexOf("red asterisk") !== -1 &&
-    contentSrc.indexOf("reported domain name and the date") !== -1 &&
+    contentSrc.indexOf("the form will not submit without it") !== -1);
+ok("guide: the screenshot is REQUIRED, must show the " +
+   "domain and the date/time",
+  contentSrc.indexOf("Attach a screenshot that clearly shows") !== -1 &&
+    contentSrc.indexOf("the reported domain and the date and") !== -1 &&
+    contentSrc.indexOf("the form requires one") !== -1 &&
     contentSrc.indexOf("screenshot upload is optional") === -1);
-ok("guide: the Show-original tip is there (three-dot menu, " +
-   "summary table, PDF alternative, accepted formats)",
-  contentSrc.indexOf("three-dot menu") !== -1 &&
-    contentSrc.indexOf("Show original") !== -1 &&
-    contentSrc.indexOf("summary table at the top") !== -1 &&
-    contentSrc.indexOf("PDF works too") !== -1 &&
-    contentSrc.indexOf("up to 8M") !== -1);
-ok("guide: the anti-bot shield warning — a blank page or a " +
-   "stuck upload means retry, not your mistake",
-  contentSrc.indexOf("anti-bot armor") !== -1 &&
-    contentSrc.indexOf("loads blank") !== -1 &&
-    contentSrc.indexOf("not your mistake") !== -1 &&
-    contentSrc.indexOf("reload and try again") !== -1);
-ok("guide: errors arrive one at a time — fix the named " +
-   "field and submit again",
-  contentSrc.indexOf("one at a time") !== -1 &&
-    contentSrc.indexOf("fix the field it names") !== -1);
-ok("guide: on success, save the JY report number to check " +
-   "progress",
-  contentSrc.indexOf("report number it shows") !== -1 &&
-    contentSrc.indexOf("it starts with JY") !== -1 &&
-    contentSrc.indexOf("check the report's progress") !== -1);
-ok("guide: panel-only — no guide text in the lib, and none " +
+ok("guide: the Show-original tip survives (three-dot " +
+   "menu, summary table at the top)",
+  contentSrc.indexOf("three-dot") !== -1 &&
+    contentSrc.indexOf("Show") !== -1 &&
+    contentSrc.indexOf("table at the top") !== -1);
+ok("guide: v1.0.83 \u2014 the anti-bot retry lecture and " +
+   "the one-error-at-a-time lecture are background and " +
+   "are CUT (the haircut, pinned)",
+  contentSrc.indexOf("anti-bot armor") === -1 &&
+    contentSrc.indexOf("fix the field it names") === -1);
+ok("guide: on success, save the JY report number",
+  contentSrc.indexOf("save the report number it") !== -1 &&
+    contentSrc.indexOf("it starts with JY") !== -1);
+ok("guide: panel-only \u2014 no guide text in the lib, and none " +
    "in the copied evidence",
   libSrc.indexOf("Walking their form") === -1 &&
     libSrc.indexOf("6-digit code") === -1 &&

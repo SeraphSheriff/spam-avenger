@@ -66,7 +66,7 @@ function ok(name, cond, extra) {
 
 // ---------- manifest ----------
 ok("manifest: version is 1.0.78",
-  manifest.version === "1.0.74");
+  manifest.version === "1.0.84");
 const rfEntry = (manifest.content_scripts || []).filter(
   function (cs) {
     return (cs.js || []).join(" ").indexOf("reportfill") !== -1;
@@ -125,8 +125,17 @@ ok("reportfill: the email key is demand.js's key, named " +
 // ---------- reportfill: the fill pass itself ----------
 const gdFillAt = reportfillSrc.indexOf(
   "function fillGoDaddy(");
+// v1.0.82 narrows this segment: fillGoDaddy is no
+// longer the file's last pass — the nameabuse section
+// (with its own category clicks and step-2 fill)
+// follows it, and these pins are about the GoDaddy
+// pass only. The segment now ends where that section
+// begins; the assertions are unchanged.
+const gdFillEnd = reportfillSrc.indexOf(
+  "/* ---------------- nameabuse platform");
 const gdFillSeg = gdFillAt === -1 ? "" :
-  reportfillSrc.slice(gdFillAt);
+  reportfillSrc.slice(gdFillAt,
+    gdFillEnd === -1 ? undefined : gdFillEnd);
 ok("fill: the four fillable boxes are found by their " +
    "walked labels",
   gdFillSeg.indexOf("/your email/i") !== -1 &&
@@ -333,18 +342,17 @@ ok("content: the button is labeled for the fill, and " +
    "other kits",
   contentSrc.indexOf('"Report to GoDaddy"') !== -1 &&
   contentSrc.indexOf('"Open the " + regFormLane.label +') !== -1);
-ok("content: the kit note tells the honest story — form " +
-   "opens, Spam Avenger fills, user reviews and submits",
-  contentSrc.indexOf("fills in its boxes for you") !== -1 &&
-  contentSrc.indexOf(
-    "You review the filled form and submit it") !== -1 &&
-  contentSrc.indexOf(
-    "nothing is ever sent for you") !== -1);
-ok("content: the walked guide now names the guide pane " +
+ok("content: v1.0.83 — the GoDaddy steps tell the " +
+   "honest story: form opens, Spam Avenger fills, " +
+   "user reviews and submits",
+  contentSrc.indexOf("Spam Avenger fills in the boxes it") !== -1 &&
+  contentSrc.indexOf("Review the filled form") !== -1 &&
+  contentSrc.indexOf("Submit the form yourself") !== -1 &&
+  contentSrc.indexOf("is ever sent for you") !== -1);
+ok("content: the GoDaddy steps name the guide pane " +
    "on the form page",
-  contentSrc.indexOf("the guide pane") !== -1 &&
-  contentSrc.indexOf(
-    "in the corner of the form page says what") !== -1);
+  contentSrc.indexOf("guide pane on the form page says") !== -1 &&
+  contentSrc.indexOf("what it filled and what it left") !== -1);
 
 // ---------- content: the fallback kit is intact ----------
 ok("fallback: the evidence box still renders (its text " +

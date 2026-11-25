@@ -62,7 +62,7 @@ function ok(name, cond, extra) {
 function count(src, sub) { return src.split(sub).length - 1; }
 
 // ---------- manifest ----------
-ok("manifest: version is 1.0.74", manifest.version === "1.0.74");
+ok("manifest: version is 1.0.74", manifest.version === "1.0.84");
 
 // ---------- (1)-(4) lib: the four new lanes ----------
 const lane = analyze.registrarFormLane;
@@ -90,9 +90,16 @@ const bf = lane({ registrarInfo: {
   registrarAbuse: "abuse3814@brandfocus.cn" } });
 ok("brandfocus: RDAP name + abuse contact match",
   !!bf && bf.kit === "brandfocus");
-ok("brandfocus: the form is its nameabuse subdomain",
-  !!bf && bf.url === "https://zy.nameabuse.net/" &&
-  bf.linkText === "zy.nameabuse.net");
+// v1.0.82 narrows this pin: the BrandFocus lane now
+// links the complaint form itself (submit.php), not
+// the platform homepage — Michael, walking zy live on
+// Nov 24 2026: "why make user click complaint.. just
+// go to the correct url". linkText follows the GoDaddy
+// convention (host + path, no scheme).
+ok("brandfocus: the form is its nameabuse subdomain's " +
+   "complaint form itself (v1.0.82 deep link)",
+  !!bf && bf.url === "https://zy.nameabuse.net/submit.php" &&
+  bf.linkText === "zy.nameabuse.net/submit.php");
 const bf2 = lane({ registrarInfo: {
   registrar: "BrandFocus Co., Ltd.",
   registrarAbuse: "abuse@zy.nameabuse.net" } });
@@ -120,12 +127,22 @@ ok("godaddy: the form is the legal-portal phishing " +
     "https://legalportal.godaddy.com/abuse/phishing" &&
   gd.linkText === "legalportal.godaddy.com/abuse/phishing");
 
-ok("the four claim NO description cap (their forms are " +
-   "unwalked; the builder's own default governs)",
+// v1.0.81 narrows this pin the way v1.0.80 narrowed the
+// July Name gate pin: BrandFocus's platform has since
+// been walked (the Nov 21 2026 Wanshang filing on the
+// same nameabuse service + Michael's Nov 24 2026 read of
+// zy.nameabuse.net), so its lane now claims the
+// platform's real 2,000-character description cap with
+// the cap closing. The other three still claim none.
+ok("three of the four still claim NO description cap " +
+   "(their forms are unwalked; the builder's own " +
+   "default governs) — BrandFocus now claims 2,000",
   !!nf && nf.descriptionCap == null &&
-  !!bf && bf.descriptionCap == null &&
   !!en && en.descriptionCap == null &&
-  !!gd && gd.descriptionCap == null);
+  !!gd && gd.descriptionCap == null &&
+  !!bf && bf.descriptionCap === 2000 &&
+  bf.shortClosing.indexOf("fit the form's description " +
+    "limit") !== -1);
 ok("precedence preserved: Wanshang still wins its record",
   (lane({ registrarInfo: { registrar: "Wanshang Technology",
     registrarAbuse: "abuse@kh86.cn" } }) || {}).kit ===
@@ -164,31 +181,40 @@ ok("content: the generic kit heading is built from the " +
 ok("content: the generic form button is built from the " +
    "lane's label",
   contentSrc.indexOf('"Open the " + regFormLane.label +') !== -1);
-ok("content: the generic intro note names the desk's " +
-   "retired email lane",
-  contentSrc.indexOf("This registrar doesn't take abuse " +
-    "reports by ") !== -1 &&
-  contentSrc.indexOf("reports go through its own form") !== -1);
-ok("content: all four provisional guides exist",
-  contentSrc.indexOf('regKit === "newfold"') !== -1 &&
-  contentSrc.indexOf('regKit === "brandfocus"') !== -1 &&
-  contentSrc.indexOf('regKit === "enom"') !== -1 &&
-  contentSrc.indexOf('regKit === "godaddy"') !== -1);
-ok("content: the guides carry only what the replies prove",
-  contentSrc.indexOf("Web.com and Network Solutions") !== -1 &&
-  contentSrc.indexOf("will no longer accept domain name " +
-    "abuse") !== -1 &&
-  contentSrc.indexOf("Compliance team") !== -1 &&
-  contentSrc.indexOf("not monitored") !== -1 &&
-  contentSrc.indexOf("developer API") !== -1);
-ok("content: every new guide is marked provisional",
+ok("content: v1.0.83 \u2014 the merged box's heading " +
+   "names the desk's retired email lane",
+  contentSrc.indexOf("Use their form") !== -1 &&
+  contentSrc.indexOf("takes no reports by email") !== -1);
+ok("content: v1.0.83 \u2014 all four kits have branches " +
+   "in the merged actions box (kit-keyed now)",
+  contentSrc.indexOf('kit === "newfold"') !== -1 &&
+  contentSrc.indexOf('kit === "brandfocus"') !== -1 &&
+  contentSrc.indexOf('kit === "enom"') !== -1 &&
+  contentSrc.indexOf('kit === "godaddy"') !== -1);
+// v1.0.82 narrows this pin: the BrandFocus fragment it
+// checked ("will no longer accept domain name abuse")
+// was the v1.0.81 walked guide's wording of the
+// auto-reply fact; the short guide carries the same
+// reply-proven fact in its own first line. The other
+// desks' fragments are untouched.
+ok("content: v1.0.83 \u2014 the steps carry only " +
+   "reply-proven ACTIONS (the background the replies " +
+   "proved \u2014 dead mailboxes, the Compliance team, " +
+   "the API lane \u2014 is cut, not carried)",
+  contentSrc.indexOf("their Compliance") !== -1 &&
+  contentSrc.indexOf("Email is dead here: the mailbox") === -1 &&
+  contentSrc.indexOf("Web.com and Network Solutions") === -1 &&
+  contentSrc.indexOf("developer API") === -1);
+ok("content: the unwalked kits' steps are marked " +
+   "provisional; the 'Walking their form' guide " +
+   "heading is gone (v1.0.83 merged box)",
   contentSrc.indexOf("This guide is provisional") !== -1 &&
-  contentSrc.indexOf('"Walking their form:"') !== -1);
-ok("content: the walked kits' guides are untouched " +
-   "(Wanshang + July Name fragments intact)",
+  contentSrc.indexOf('"Walking their form:"') === -1);
+ok("content: the walked kits stand in their slim " +
+   "shape (Wanshang + July Name fragments intact)",
   contentSrc.indexOf('"Open the Wanshang abuse form"') !== -1 &&
   contentSrc.indexOf('"Open the July Name abuse form"') !== -1 &&
-  contentSrc.indexOf("A screenshot is required") !== -1 &&
+  contentSrc.indexOf("Attach a screenshot that clearly shows") !== -1 &&
   contentSrc.indexOf("WSABUSE-") !== -1);
 
 // ---------- (5) the AWS email door ----------

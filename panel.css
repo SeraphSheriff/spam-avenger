@@ -179,6 +179,27 @@
   animation: sf-spin 0.8s linear infinite;
 }
 @keyframes sf-spin { to { transform: rotate(360deg); } }
+/* v1.0.83: the domain-trace progress row — a placeholder in
+   the accordion stack (directly above the PID section) while
+   the second async chain (domain trace + lane gating) runs.
+   Same spinner as the loading pane, shrunk to sit inline. */
+#spam-avenger-panel .sf-trace-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  margin: 8px 0;
+  background: #f1f3f4;
+  border-radius: 8px;
+  color: #5f6368;
+  font-size: 12px;
+}
+#spam-avenger-panel .sf-trace-row .sf-spin {
+  width: 16px; height: 16px;
+  border-width: 2px;
+  margin: 0;
+  flex: none;
+}
 
 /* v1.0.34: button colors say how much work is left for the user.
    Green = the addon does nearly all of it (auto-filled form,

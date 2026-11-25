@@ -220,6 +220,31 @@
  * watch when the confirmation is already up. The watch
  * never clicks anything.
  *
+ * v1.0.82: the nameabuse platform gets the pane. zy.nameabuse.net
+ * (BrandFocus) and ws.nameabuse.net (Wanshang) are one outsourced
+ * abuse-report service under per-registrar subdomains; both
+ * registrar lanes now link its complaint form itself
+ * (submit.php), and the panel's buttons stash a nameabuse
+ * payload (kit, label, reported domain, the kit's short
+ * evidence). On submit.php — the only page this script is
+ * wired to on those hosts — the pane carries the SHORT guide
+ * (eight one-line facts; v1.0.81's seven-paragraph BrandFocus
+ * guide was a wall of text no user would read, Michael's live
+ * verdict), picks the spam category on step 1 (DNS Abuse
+ * Complaint, then Spam (Distribution Vector), then Next —
+ * scam spam is the distribution-vector case in the form's own
+ * words; the referral-only Non-DNS "General Spam" path is
+ * never the pick; a card that can't be matched exactly is
+ * never guess-clicked), and fills the details step on step 2
+ * (defanged affected domain, an abuse URL only when the
+ * message carries one on the reported domain itself, the
+ * short evidence as the description — the form's 50–2,000
+ * window). Registration years and Official Website are
+ * optional and unknowable from a message, so they are left
+ * alone; step 3 asks for the user's own details and is never
+ * filled (the FTC rule); the pane never clicks step 2's Next
+ * and never submits — the filing is the user's click.
+ *
  * The stash is erased as soon as a form is filled. Nothing is ever
  * transmitted by this script, and it NEVER clicks Submit: the user
  * reviews the filled form and sends the report themselves.
@@ -256,6 +281,36 @@
     // watchdog's ensure()/render() re-apply it, so a banner
     // the host page drops and recreates comes back heroic.
     var heroMode = false;
+    // v1.0.83: the size the USER dragged the pane to.
+    // Michael's field note (Nov 24 2026): the pane
+    // "blocks too much of the screen" and couldn't be
+    // shrunk — the banner was fixed-size, sitting on top
+    // of the very form it walks. Held in module state so
+    // ensure()'s watchdog recreations re-apply the
+    // user's size instead of snapping back to default.
+    var userSize = null, dragCorner = false;
+    function bannerSizeSane(sz) {
+      if (!sz) return false;
+      var vw = 0, vh = 0;
+      try {
+        vw = window.innerWidth || 0;
+        vh = window.innerHeight || 0;
+      } catch (e) {}
+      return sz.w >= 260 && sz.h >= 120 &&
+        (!vw || sz.w <= Math.max(320, Math.floor(vw * 0.9))) &&
+        (!vh || sz.h <= Math.max(200, vh - 24));
+    }
+    function captureBannerSize() {
+      if (!el) return;
+      var sz = { w: el.offsetWidth, h: el.offsetHeight };
+      if (bannerSizeSane(sz)) userSize = sz;
+    }
+    // v1.0.82: an optional extra region under the three
+    // lines — the nameabuse pane's guide + report-text box
+    // lives there. A builder (not a node) so a watchdog-
+    // recreated banner re-renders it; dismissed with the
+    // banner, like everything else here.
+    var extraBuilder = null, extraEl = null;
 
     function log(line) {
       try { console.log("[SpamAvenger] " + line); } catch (e) {}
@@ -354,11 +409,43 @@
         "Helvetica,sans-serif !important;" +
         "font-size:16px !important;line-height:1.45 !important;" +
         "padding:14px 16px !important;border-radius:8px !important;" +
-        "pointer-events:auto !important;max-width:420px !important;" +
+        "pointer-events:auto !important;" +
+        // v1.0.83: resizable. width (not just max-width)
+        // so the native resize grip has a box to change;
+        // the bounds keep the pane usable — never
+        // narrower than its text needs, never wider or
+        // taller than the viewport; a long pane scrolls
+        // internally instead of running off-screen.
+        "width:420px !important;max-width:90vw !important;" +
+        "min-width:260px !important;min-height:120px !important;" +
+        "max-height:calc(100vh - 24px) !important;" +
+        "resize:both !important;overflow:auto !important;" +
         "white-space:pre-wrap !important;" +
         "overflow-wrap:break-word !important;" +
         "text-align:left !important;" +
         "box-shadow:0 4px 16px rgba(0,0,0,0.45) !important;");
+      // v1.0.83: re-apply the user's dragged size, and
+      // capture the next one. Only a genuine corner drag
+      // counts: a mousedown that starts within the
+      // resize grip's corner (bottom-right — the pane is
+      // anchored top-right, so its grip is bottom-right),
+      // then a mouseup. Clicks elsewhere never resize,
+      // and a plain click on the grip changes nothing.
+      if (userSize) {
+        el.style.setProperty("width", userSize.w + "px",
+          "important");
+        el.style.setProperty("height", userSize.h + "px",
+          "important");
+      }
+      el.addEventListener("mousedown", function (ev) {
+        var r = el.getBoundingClientRect();
+        dragCorner = ev.clientX >= r.right - 24 &&
+          ev.clientY >= r.bottom - 24;
+      });
+      el.addEventListener("mouseup", function () {
+        if (dragCorner) captureBannerSize();
+        dragCorner = false;
+      });
       var close = document.createElement("button");
       close.type = "button";
       close.textContent = "\u00D7";
@@ -375,6 +462,8 @@
         "font-family:inherit !important;");
       close.addEventListener("click", function () {
         dismissed = true;
+        extraBuilder = null;
+        extraEl = null;
         if (el && el.parentNode) el.parentNode.removeChild(el);
         el = null;
       });
@@ -400,6 +489,13 @@
       el.appendChild(leadEl);
       el.appendChild(sub1El);
       el.appendChild(sub2El);
+      // v1.0.82: the extra region rides at the bottom of
+      // the banner when a builder is registered (the
+      // nameabuse guide pane).
+      if (extraBuilder) {
+        extraEl = extraBuilder();
+        if (extraEl) el.appendChild(extraEl);
+      }
       (document.documentElement || document.body).appendChild(el);
       render();
       applyHero();
@@ -434,6 +530,23 @@
         headerText = text || "Spam Avenger";
         ensure(); // render() inside applies it to a live banner
       },
+      // v1.0.82: register (or clear) the extra region's
+      // builder. Applied to a live banner immediately;
+      // otherwise ensure() renders it when the banner is
+      // created (or watchdog-recreated).
+      setExtra: function (fn) {
+        extraBuilder = fn || null;
+        if (el && document.documentElement &&
+            document.documentElement.contains(el)) {
+          if (extraEl && extraEl.parentNode === el) {
+            el.removeChild(extraEl);
+          }
+          extraEl = extraBuilder ? extraBuilder() : null;
+          if (extraEl) el.appendChild(extraEl);
+        } else if (extraBuilder) {
+          ensure();
+        }
+      },
       // v1.0.79: swap the pane to the hero finish in one
       // move — all three lines replaced together (no stale
       // fill line can linger under the headline), hero mode
@@ -465,6 +578,14 @@
   if (location.hostname === "legalportal.godaddy.com") {
     Diag.setHeader("Spam Avenger Guide");
     watchGoDaddyHero();
+  }
+
+  // v1.0.82: on the nameabuse hosts the pane is a guide
+  // too — the Guide header goes up at load, like
+  // GoDaddy's, so the banner never shows the plain
+  // header on the complaint form.
+  if (isNameabuseHost()) {
+    Diag.setHeader("Spam Avenger Guide");
   }
 
   if (typeof chrome === "undefined" || !chrome.storage ||
@@ -574,6 +695,13 @@
         // an email — the guide names the empty box.
         gdStart("");
       }
+    } else if (isNameabuseHost()) {
+      // v1.0.82: the nameabuse complaint form gets the
+      // guide pane — the category auto-pick on step 1,
+      // the details fill on step 2, the short guide and
+      // the report text riding along in the pane. The
+      // Guide header was set at load, above.
+      guideNameabuse(stash);
     }
   });
 
@@ -1838,6 +1966,409 @@
       lead: "\u2713 Filed with GoDaddy",
       sub1: sub1,
       sub2: "All done \u2014 you can close this tab."
+    };
+  }
+
+  /* v1.0.82: the nameabuse platform — PURE helpers, like
+   * the GoDaddy ones above. zy.nameabuse.net (BrandFocus)
+   * and ws.nameabuse.net (Wanshang) are one outsourced
+   * abuse-report service under per-registrar subdomains;
+   * both registrar lanes now link its complaint form
+   * itself (submit.php) and stash a nameabuse payload
+   * (kit, label, reported domain, the kit's short
+   * evidence). The pane on that form guides and fills —
+   * it never files.
+   *
+   * NAMEABUSE_GUIDE_LINES — v1.0.83: the pane guide is
+   * ACTIONS ONLY, and it is PER KIT. Michael's call
+   * (Nov 24 2026): users don't care about the background
+   * — dead-mailbox stories, platform kinship, scope
+   * warnings, caps on boxes the pane fills itself —
+   * they just need to know what they have to do.
+   *
+   * v1.0.84: Michael's completed BrandFocus filing
+   * (ZYABUSE-202611250910-3887, Nov 24 2026 — the
+   * first ever walked end-to-end) settled the code
+   * question and added two steps. The emailed 6-digit
+   * code IS real on zy: it lives at step 3
+   * (Complainant Details), behind "Send Verification
+   * Code", valid 5 minutes, and the code email is
+   * entirely in Chinese. (The v1.0.83 split — code in
+   * Wanshang's lines only — rested on nobody having
+   * ever got a BrandFocus filing past step 2; the
+   * completed walk supersedes it.) The same walk
+   * added the Measures Already Taken line (step 2's
+   * required checkbox group — check only what's true)
+   * and the declarations line (step 4's six mandatory
+   * boxes — the user's own attestations, never
+   * auto-checked). The BrandFocus lines are steps
+   * 2–6 of the panel copy, verbatim (step 1 is the
+   * panel button click that brought the user here);
+   * the tests pin the pane lines to the panel steps
+   * so neither can grow back alone. Wanshang's lines
+   * carry the same three walked steps in its own
+   * shape — its code line keeps the resend clause
+   * (walked Nov 21 2026: first code late, resend
+   * used, newest worked). */
+  var NAMEABUSE_GUIDE_LINES = {
+    brandfocus: [
+      "Spam Avenger picks the category and fills " +
+        "in the report details for you.",
+      "For Measures Already Taken, check only " +
+        "what\u2019s true \u2014 if you haven\u2019t " +
+        "done any of them, check \u201CNo measures " +
+        "have been taken.\u201D",
+      "The complainant step asks for your own " +
+        "details. Fill those in, click Send " +
+        "Verification Code, and type in the " +
+        "6-digit code it emails you. The email is " +
+        "in Chinese; the code is the number in " +
+        "it, and Gmail\u2019s Translate button " +
+        "can read the rest. It\u2019s valid for " +
+        "5 minutes.",
+      "The last step asks you to read and " +
+        "check six declaration boxes \u2014 those " +
+        "are yours \u2014 then click Submit.",
+      "Save the complaint number it gives you."
+    ],
+    wanshang: [
+      "Spam Avenger picks the category on the form: " +
+        "DNS Abuse, then Spam (Distribution Vector).",
+      "For Measures Already Taken, check only " +
+        "what\u2019s true \u2014 if you haven\u2019t " +
+        "done any of them, check \u201CNo measures " +
+        "have been taken.\u201D",
+      "The complainant step asks for your own " +
+        "details. Fill those in, click Send " +
+        "Verification Code, and type in the " +
+        "6-digit code it emails you. The email is " +
+        "in Chinese; the code is the number in " +
+        "it, and Gmail\u2019s Translate button " +
+        "can read the rest. It\u2019s valid for " +
+        "5 minutes \u2014 codes can arrive late, " +
+        "so if one doesn\u2019t land, resend once " +
+        "and use the newest.",
+      "The last step asks you to read and " +
+        "check six declaration boxes \u2014 those " +
+        "are yours \u2014 then click Submit.",
+      "Save the complaint number it gives you \u2014 " +
+        "it starts with WSABUSE-. The Track " +
+        "Complaint page follows it."
+    ]
+  };
+
+  function nameabuseGuideLines(kit) {
+    return NAMEABUSE_GUIDE_LINES[kit] ||
+      NAMEABUSE_GUIDE_LINES.brandfocus;
+  }
+
+  // Defang for the form's own convention (its
+  // placeholders ask for example[.]com and
+  // example[.]com/path): dots in the host part become
+  // [.]; a URL's scheme is dropped and its path rides
+  // as-is. A bare domain defangs whole.
+  function nameabuseDefang(text, isUrl) {
+    var t = String(text || "").trim();
+    if (!t) return "";
+    if (isUrl) {
+      t = t.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "");
+      var slash = t.indexOf("/");
+      if (slash === -1) return t.replace(/\./g, "[.]");
+      return t.slice(0, slash).replace(/\./g, "[.]") +
+        t.slice(slash);
+    }
+    return t.replace(/\./g, "[.]");
+  }
+
+  // The category cards are matched by their title text,
+  // exactly: a card whose title merely CONTAINS the
+  // phrase is not a match — "Non-DNS Abuse Complaint"
+  // contains "DNS Abuse Complaint" and is the wrong
+  // door.
+  //
+  // v1.0.84: the compare normalizes more than
+  // whitespace. The subtype title is the only target
+  // with parentheses, and it was the only target that
+  // starved live (Michael's v1.0.83 walk — the watcher
+  // polled the visible card for its full 15 s and
+  // never matched): a title the form renders with
+  // full-width parentheses, or with a zero-width
+  // character riding in it, can never equal the ASCII
+  // phrase codepoint-for-codepoint. Both sides go
+  // through the same normalizer — full-width
+  // parens/brackets fold to ASCII, zero-width
+  // characters are stripped, whitespace collapses —
+  // and the compare stays EXACT after that.
+  function nameabuseNormText(text) {
+    return String(text || "")
+      .replace(/[\u200b\u200c\u200d\u2060\ufeff]/g, "")
+      .replace(/\uff08/g, "(").replace(/\uff09/g, ")")
+      .replace(/\uff3b/g, "[").replace(/\uff3d/g, "]")
+      .replace(/\s+/g, " ").trim();
+  }
+  function nameabuseCardTextOk(text, phrase) {
+    return nameabuseNormText(text) ===
+      nameabuseNormText(phrase);
+  }
+
+  // The step-1 advance button's label, matched the way
+  // the form actually renders it: "Next \u2192". The
+  // label must START with the word Next, and everything
+  // after it must be decoration — whitespace, arrows,
+  // guillemets — never another word. "Next step" and
+  // "Next page" are different buttons and do not match.
+  function nameabuseNextTextOk(text) {
+    var t = String(text || "").replace(/\s+/g, " ").trim();
+    if (t === "Next") return true;
+    if (t.indexOf("Next") !== 0) return false;
+    var rest = t.slice(4);
+    return /^[\s\u2192\u00bb\u203a>]+$/.test(rest);
+  }
+
+  function nameabusePlan(stash) {
+    var payload = (stash && stash.nameabuse) || {};
+    var plan = { kit: payload.kit || "",
+      label: payload.label || "the registrar" };
+    var domain = String(payload.domain || "").trim()
+      .toLowerCase();
+    plan.domain = domain || null;
+    plan.domainDefanged = domain
+      ? nameabuseDefang(domain, false) : null;
+    // The Abuse URL box takes a URL on the reported
+    // domain itself — the form rejects any other (the
+    // step-1 walk). A link on a subdomain of the
+    // reported domain is on the domain; anything else
+    // rides in the description instead.
+    // v1.0.83: and the box is REQUIRED — Michael's live
+    // v1.0.82 walk dead-ended on the form's own dialog:
+    // "Each domain must include at least one abuse URL."
+    // The v1.0.82 plan left the box empty in exactly the
+    // no-on-domain-URL case, teaching a filing that
+    // cannot proceed. The fallback is the walked
+    // Wanshang solution of Nov 21 2026: the defanged
+    // reported domain itself goes in the box, and the
+    // form accepts it. abuseUrlWhy keeps recording WHY
+    // (otherdomain / nolinks) for the outcome line, and
+    // abuseUrlFallback marks that the domain stood in.
+    plan.abuseUrl = null;
+    plan.abuseUrlWhy = null;
+    plan.abuseUrlFallback = false;
+    var urls = (stash && stash.urls) || [];
+    if (!domain) {
+      plan.abuseUrlWhy = "nodomain";
+    } else {
+      var found = null, sawOther = false;
+      for (var i = 0; i < urls.length; i++) {
+        var u = String(urls[i] || "");
+        var host = u.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "")
+          .split("/")[0].split("@").pop()
+          .split(":")[0].toLowerCase();
+        if (host === domain ||
+            host.slice(-(domain.length + 1)) ===
+              "." + domain) {
+          found = u;
+          break;
+        }
+        if (host) sawOther = true;
+      }
+      if (found) {
+        plan.abuseUrl = nameabuseDefang(found, true);
+      } else {
+        plan.abuseUrlWhy = sawOther ? "otherdomain"
+          : "nolinks";
+        plan.abuseUrl = plan.domainDefanged;
+        plan.abuseUrlFallback = true;
+      }
+    }
+    // The description is the kit's short evidence,
+    // built in the panel against the platform's
+    // 2,000-character cap. The form's own window is
+    // 50–2,000 (its step-2 footer); a text outside it
+    // is not written — the pane says why and the copy
+    // box carries it instead.
+    var desc = String(payload.description || "").trim();
+    plan.description = null;
+    plan.descriptionWhy = null;
+    if (!desc) plan.descriptionWhy = "nodesc";
+    else if (desc.length < 50) {
+      plan.descriptionWhy = "tooshort";
+    } else if (desc.length > 2000) {
+      plan.descriptionWhy = "toolong";
+    } else plan.description = desc;
+    return plan;
+  }
+
+  // The pane's words for the category auto-pick: what
+  // it did when it could, and the manual path when it
+  // couldn't — never a guess-click either way.
+  // v1.0.83: the fallback is TRUTHFUL about partial
+  // progress. Michael's live v1.0.82 walk: the pane
+  // reported "couldn't pick the category" while the
+  // DNS Abuse card sat selected on the page — total
+  // failure claimed for a half-done job. The state
+  // machine knows which state it died in, so the
+  // fallback names what DID land and only asks the
+  // user for the clicks that are actually left:
+  //   "fallback-main" — nothing picked yet
+  //   "fallback-sub"  — DNS Abuse picked, Spam card not
+  //   "fallback-next" — both cards picked, Next not
+  // ("fallback" stays as the fallback-main alias.)
+  function nameabuseCategoryLines(status) {
+    if (status === "picked") {
+      return {
+        lead: "\u2713 Selected DNS Abuse \u2192 Spam " +
+          "(Distribution Vector) and moved to the " +
+          "next step \u2014 nothing submitted.",
+        sub1: "Scam spam is the distribution-vector " +
+          "case in the form's own words. The " +
+          "referral-only \u201CGeneral Spam\u201D path " +
+          "is never the pick."
+      };
+    }
+    if (status === "fallback-sub") {
+      return {
+        lead: "I selected DNS Abuse, but couldn't " +
+          "match the Spam (Distribution Vector) " +
+          "card \u2014 click that one, then Next.",
+        sub1: "The Spam card didn't match what I " +
+          "know of this form, so I didn't " +
+          "guess-click. Nothing is submitted either " +
+          "way \u2014 the filing is always your click."
+      };
+    }
+    if (status === "fallback-next") {
+      return {
+        lead: "I selected DNS Abuse \u2192 Spam " +
+          "(Distribution Vector), but couldn't " +
+          "match the Next button \u2014 click Next " +
+          "to continue.",
+        sub1: "Both cards are picked; only the " +
+          "advance is yours. Nothing is submitted " +
+          "either way \u2014 the filing is always " +
+          "your click."
+      };
+    }
+    return {
+      lead: "I couldn't pick the category " +
+        "automatically \u2014 click DNS Abuse " +
+        "Complaint, then Spam (Distribution " +
+        "Vector), then Next.",
+      sub1: "The cards didn't match what I know " +
+        "of this form, so I didn't guess-click. " +
+        "Nothing is submitted either way \u2014 the " +
+        "filing is always your click."
+    };
+  }
+
+  // The pane's words for the step-2 fill pass, from the
+  // plan + per-field outcomes (filled / already /
+  // notfound / wiped / skipped) — the GoDaddy outcome
+  // discipline, in the form's own terms.
+  function nameabuseOutcomeLines(plan, outcomes) {
+    var NAMES = {
+      domain: "the affected domain",
+      abuseUrl: "the abuse URL",
+      description: "the description"
+    };
+    var ORDER = ["domain", "abuseUrl", "description"];
+    function bare(k) {
+      return NAMES[k].replace(/^the /, "");
+    }
+    function joinNames(keys) {
+      var bs = keys.map(bare);
+      if (bs.length <= 1) return bs.join("");
+      if (bs.length === 2) return bs.join(" and ");
+      return bs.slice(0, -1).join(", ") + " and " +
+        bs[bs.length - 1];
+    }
+    var filled = [], already = [], notes = [];
+    ORDER.forEach(function (k) {
+      if (outcomes[k] === "filled") filled.push(k);
+      else if (outcomes[k] === "already") already.push(k);
+    });
+    var formGone = outcomes.domain === "notfound" &&
+      outcomes.description === "notfound";
+    ORDER.forEach(function (k) {
+      if (outcomes[k] === "notfound" && !formGone) {
+        notes.push("I couldn't find " + NAMES[k] +
+          " box \u2014 the form may have changed; its " +
+          "copy is in the box below.");
+      } else if (outcomes[k] === "wiped") {
+        notes.push("The form wouldn't keep what I " +
+          "wrote in " + NAMES[k] + " box \u2014 its " +
+          "copy is in the box below.");
+      }
+    });
+    // v1.0.83: the Abuse URL fallback (see
+    // nameabusePlan) — the domain itself stood in
+    // because the form requires at least one URL.
+    // The note says so, and why; the v1.0.82
+    // "empty on purpose" line is gone (it taught a
+    // filing the form refuses to advance).
+    if (plan.abuseUrlFallback &&
+        outcomes.abuseUrl === "filled") {
+      if (plan.abuseUrlWhy === "otherdomain") {
+        notes.push("The form requires at least one " +
+          "abuse URL, so I put the reported domain " +
+          "itself in that box \u2014 the message's " +
+          "links are on a different domain, and " +
+          "they ride in the description instead.");
+      } else {
+        notes.push("The form requires at least one " +
+          "abuse URL, so I put the reported domain " +
+          "itself in that box \u2014 this message " +
+          "carried no links I could find.");
+      }
+    }
+    if ((outcomes.domain === "skipped" ||
+        outcomes.abuseUrl === "skipped") &&
+        plan.abuseUrlWhy === "nodomain") {
+      notes.push("I don't know the reported domain " +
+        "for this case, so the domain and URL boxes " +
+        "are yours to fill.");
+    }
+    if (outcomes.description === "skipped") {
+      notes.push("The description box is empty \u2014 " +
+        "the report text didn't fit the form's " +
+        "50\u20132,000 character window; its copy is " +
+        "in the box below and in the Gmail panel.");
+    }
+    var lead;
+    if (formGone) {
+      lead = "\u26A0 I couldn't fill the details " +
+        "step in.";
+      notes.unshift("The form's boxes didn't match " +
+        "what I know of this page \u2014 the report " +
+        "text is in the box below and in the Gmail " +
+        "panel, if you want to paste it in.");
+    } else if (filled.length) {
+      lead = "\u2713 I filled in " + joinNames(filled) +
+        (already.length
+          ? "; " + joinNames(already) +
+            (already.length > 1 ? " were" : " was") +
+            " already filled in, so I left " +
+            (already.length > 1 ? "them" : "it") +
+            " alone."
+          : ".");
+    } else if (already.length) {
+      lead = "The details step already had " +
+        joinNames(already) + " in \u2014 I left your " +
+        "text alone.";
+    } else {
+      lead = "\u26A0 I couldn't fill the details " +
+        "step in.";
+    }
+    return {
+      lead: lead,
+      sub1: notes.join(" "),
+      sub2: formGone ? "" :
+        "Registration years and Official Website " +
+        "are optional \u2014 I left them alone. For " +
+        "Evidence Upload, attach the full original " +
+        "message as a .txt file. The next step asks " +
+        "for YOUR details \u2014 that one's yours; I " +
+        "never fill those in, and I never file the " +
+        "report."
     };
   }
 
@@ -3459,6 +3990,497 @@
       // GoDaddy's confirmation lands in this tab, the pane
       // trades these fill lines for the hero finish.
       watchGoDaddyHero();
+    }
+  }
+
+  /* ---------------- nameabuse platform (BrandFocus / Wanshang) ---------------- */
+
+  // v1.0.82: one outsourced reporting service, two
+  // registrar subdomains. The pane runs only on the
+  // complaint form itself — the manifest matches
+  // submit.php paths on these hosts, and the form-page
+  // gate below stands the section down anywhere else
+  // the script might ever be widened to (the platform's
+  // tracking and confirmation pages included).
+  function isNameabuseHost() {
+    return location.hostname === "zy.nameabuse.net" ||
+      location.hostname === "ws.nameabuse.net";
+  }
+  function nameabuseKitForHost() {
+    return location.hostname === "zy.nameabuse.net"
+      ? "brandfocus" : "wanshang";
+  }
+  function isNameabuseFormPage() {
+    return /\/submit\.php$/.test(location.pathname || "");
+  }
+
+  // Which element of a title's ancestor chain to
+  // CLICK — a pure decision over plain descriptors,
+  // so it is Node-testable without a DOM. The chain
+  // runs from the title element itself (index 0) up
+  // through its ancestors; each entry is { text, hits }
+  // — its normalized text, and how many times the
+  // phrase occurs in it.
+  //
+  // The rule (v1.0.84, stated once and implemented
+  // exactly): the click target is the NEAREST ancestor
+  // that holds the phrase exactly once and carries
+  // more than the title alone (title + description),
+  // within a sane size — a whole card runs to a few
+  // hundred characters, the row of five cards runs
+  // well past that, so the row can never be picked by
+  // mistake. No button-ness requirement of any kind:
+  // no <button>, role, onclick or tabindex is asked
+  // for, anywhere in the resolution. No qualifying
+  // ancestor → the title itself (index 0).
+  //
+  // v1.0.83 deviated from this rule twice, and the
+  // subtype card starved live a second time (Michael's
+  // v1.0.83 retest — DNS Abuse picked, the Spam card
+  // never matched, he clicked it himself): (1) a
+  // clickable-ancestor priority loop ran BEFORE the
+  // container rule, so any button/a/label/[role=
+  // button] ancestor in the climb won outright — a
+  // button-ness gate the rule does not have; (2) the
+  // container loop overwrote its pick on every
+  // qualifying ancestor, landing on the OUTERMOST
+  // qualifier instead of the nearest. Both are gone.
+  // The broad cards keep working through the same
+  // path: the <button> IS the nearest qualifying
+  // ancestor of its <h3> (title + description, ~270
+  // chars), so it is picked on the container rule
+  // alone, not on its button-ness.
+  var NA_CARD_MAX_TEXT = 320;
+  function naCardPickFromChain(chain, phrase) {
+    if (!chain || !chain.length) return -1;
+    for (var j = 1; j < chain.length; j++) {
+      var d = chain[j];
+      if (d.hits === 1 &&
+          d.text.length > phrase.length &&
+          d.text.length <= NA_CARD_MAX_TEXT) {
+        return j;
+      }
+    }
+    return 0;
+  }
+
+  // A category card, found by its title text — EXACTLY
+  // (nameabuseCardTextOk). Nested duplicates of the same
+  // title (a heading inside its own wrapper) collapse to
+  // the innermost element; the click target is resolved
+  // from the title's ancestor chain by
+  // naCardPickFromChain (the nearest phrase-once
+  // ancestor that carries more than the title, else
+  // the title itself — no button-ness anywhere), and the
+  // target is scrolled into view before it is returned
+  // — v1.0.83: the subtype row overflows the page's
+  // right edge at narrower widths and the Spam card can
+  // sit completely off-screen. Anything but exactly one
+  // distinct target is a no-match: the caller falls back
+  // to telling the user which cards to click rather
+  // than guess-clicking.
+  function naCardClickTarget(phrase) {
+    var els = document.querySelectorAll(
+      "h1, h2, h3, h4, h5, h6, button, a, [role='button'], " +
+      "label, div, span, p, li");
+    var matched = [];
+    for (var i = 0; i < els.length; i++) {
+      if (!isVisible(els[i])) continue;
+      if (!nameabuseCardTextOk(els[i].textContent, phrase)) {
+        continue;
+      }
+      matched.push(els[i]);
+    }
+    var innermost = matched.filter(function (el) {
+      return !matched.some(function (other) {
+        return other !== el && el.contains(other);
+      });
+    });
+    var targets = [];
+    var nPhrase = nameabuseNormText(phrase);
+    innermost.forEach(function (el) {
+      var chain = [], nodes = [], node = el;
+      for (var up = 0; up < 7 && node; up++) {
+        // v1.0.84: chain text and hit counts run on
+        // the same normalizer as the title compare
+        // (nameabuseNormText) — a title the matcher
+        // accepted must count the same way here, or
+        // the picker's phrase-once test can disagree
+        // with the matcher's exact test. No clickable
+        // flag is recorded: button-ness plays no part
+        // in the resolution (see naCardPickFromChain).
+        var text = nameabuseNormText(node.textContent);
+        var hits = 0, at = 0;
+        while (true) {
+          at = text.indexOf(nPhrase, at);
+          if (at === -1) break;
+          hits++;
+          at += nPhrase.length;
+        }
+        chain.push({
+          text: text,
+          hits: hits
+        });
+        nodes.push(node);
+        node = node.parentElement;
+      }
+      var pick = naCardPickFromChain(chain, nPhrase);
+      var click = pick >= 0 ? nodes[pick] : el;
+      if (targets.indexOf(click) === -1) targets.push(click);
+    });
+    if (targets.length !== 1) return null;
+    try {
+      if (targets[0].scrollIntoView) {
+        targets[0].scrollIntoView(
+          { block: "nearest", inline: "nearest" });
+      }
+    } catch (e) {}
+    return targets[0];
+  }
+
+  // Step 1's advance control: a visible, enabled
+  // button-ish element whose label is "Next" — v1.0.83:
+  // the form's real button reads "Next \u2192", arrow
+  // included, and the v1.0.82 whole-text-exact match
+  // failed on the arrow alone, stalling even a fully
+  // picked step 1 into the fallback. The pure matcher
+  // below trims trailing decoration (arrows, guillemets,
+  // whitespace) and then demands the word itself.
+  // Exactly one, or no match — same no-guess rule.
+  function naFindNextButton() {
+    var els = document.querySelectorAll(
+      "button, a, [role='button'], input[type='button']");
+    var found = [];
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      if (!isVisible(el) || el.disabled) continue;
+      var t = el.tagName === "INPUT"
+        ? (el.value || "") : (el.textContent || "");
+      if (nameabuseNextTextOk(t)) found.push(el);
+    }
+    return found.length === 1 ? found[0] : null;
+  }
+
+  // Step 2's boxes, matched by their labels and
+  // placeholders as the form shows them (Michael's
+  // Nov 24 2026 walk). The Registration years number
+  // box and the Evidence Upload file input are never
+  // candidates: the number/file types are excluded
+  // outright, and the domain matcher refuses anything
+  // whose label mentions the abuse URL.
+  function naFindField(kind) {
+    var tags = kind === "description" ? "textarea" : "input";
+    var els = document.querySelectorAll(tags);
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      if (!isVisible(el)) continue;
+      if (kind !== "description") {
+        var ty = (el.getAttribute("type") || "text")
+          .toLowerCase();
+        if (ty === "number" || ty === "file" ||
+            ty === "hidden" || ty === "checkbox" ||
+            ty === "radio") continue;
+      }
+      var lab = controlLabel(el);
+      var ph = (el.getAttribute &&
+        el.getAttribute("placeholder")) || "";
+      if (kind === "domain") {
+        if (/affected domain/i.test(lab) &&
+            !/abuse url/i.test(lab)) return el;
+        if (/defanged format recommended/i.test(ph) &&
+            !/\/path/i.test(ph)) return el;
+      } else if (kind === "abuseUrl") {
+        if (/abuse url/i.test(lab)) return el;
+        if (/defanged format:\s*example\[\.\]com\/path/i
+            .test(ph)) return el;
+      } else if (kind === "description") {
+        if (/detailed description/i.test(lab + "\n" + ph)) {
+          return el;
+        }
+      }
+    }
+    return null;
+  }
+
+  function naStep2Visible() {
+    return !!(naFindField("description") ||
+      naFindField("domain"));
+  }
+
+  // The pane's extra region: the short guide, then the
+  // report text in a copy box — the payload rides the
+  // page even if a box can't be matched, so the user
+  // can always paste it in by hand.
+  function buildNameabuseExtra(plan) {
+    var wrap = document.createElement("div");
+    wrap.setAttribute("style",
+      "margin-top:10px !important;" +
+      "border-top:1px solid rgba(255,255,255,0.35) " +
+      "!important;padding-top:10px !important;");
+    var guide = document.createElement("div");
+    guide.setAttribute("style",
+      "font-size:14px !important;line-height:1.55 " +
+      "!important;margin:0 0 10px 0 !important;");
+    nameabuseGuideLines(plan.kit).forEach(function (ln) {
+      var d = document.createElement("div");
+      d.textContent = ln;
+      guide.appendChild(d);
+    });
+    wrap.appendChild(guide);
+    if (plan.description) {
+      var lab = document.createElement("div");
+      lab.setAttribute("style",
+        "font-size:14px !important;font-weight:bold " +
+        "!important;margin:0 0 4px 0 !important;");
+      lab.textContent = "Report text (the description)";
+      wrap.appendChild(lab);
+      var ta = document.createElement("textarea");
+      ta.readOnly = true;
+      ta.value = plan.description;
+      ta.setAttribute("style",
+        "width:100% !important;box-sizing:border-box " +
+        "!important;height:110px !important;" +
+        "font-size:13px !important;color:#111 " +
+        "!important;background:#fff !important;" +
+        "border-radius:4px !important;padding:6px " +
+        "!important;");
+      wrap.appendChild(ta);
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = "Copy the report text";
+      btn.setAttribute("style",
+        "margin-top:6px !important;padding:6px 12px " +
+        "!important;font-size:14px !important;" +
+        "background:#fff !important;color:#111 " +
+        "!important;border:none !important;" +
+        "border-radius:4px !important;cursor:pointer " +
+        "!important;font-family:inherit !important;");
+      btn.addEventListener("click", function () {
+        var copied = false;
+        try {
+          ta.focus();
+          ta.select();
+          copied = document.execCommand("copy");
+        } catch (e) {}
+        if (!copied && navigator.clipboard &&
+            navigator.clipboard.writeText) {
+          try {
+            navigator.clipboard.writeText(ta.value);
+            copied = true;
+          } catch (e) {}
+        }
+        var orig = btn.textContent;
+        btn.textContent = copied
+          ? "Copied! Paste it into the description field"
+          : "Select the box above and copy it (Ctrl+C)";
+        setTimeout(function () {
+          btn.textContent = orig;
+        }, 6000);
+      });
+      wrap.appendChild(btn);
+    }
+    return wrap;
+  }
+
+  function guideNameabuse(stash) {
+    var payload = (stash && stash.nameabuse) || null;
+    if (!isNameabuseFormPage()) {
+      Diag.debug("nameabuse: not the complaint form " +
+        "\u2014 standing down");
+      return;
+    }
+    if (!payload ||
+        payload.kit !== nameabuseKitForHost()) {
+      // A stash from another lane (or none): this pane
+      // has no case for this desk. Say so plainly and
+      // stand down — no guide, no clicks, no fills.
+      Diag.set("lead", "I don't have a case loaded " +
+        "for this form. Open the spam in Gmail and " +
+        "click the registrar's report button \u2014 " +
+        "I'll walk the form with you.");
+      Diag.debug("nameabuse: no matching payload in " +
+        "the stash \u2014 guide standing down");
+      return;
+    }
+    var plan = nameabusePlan(stash);
+    Diag.set("lead", "Your " + plan.label + " report " +
+      "is loaded \u2014 walking the form with you.");
+    Diag.set("sub1", plan.domain
+      ? "Reported domain: " + plan.domainDefanged : "");
+    Diag.setExtra(function () {
+      return buildNameabuseExtra(plan);
+    });
+    Diag.debug("nameabuse: guide up for " + plan.kit +
+      " (" + (plan.domain || "no domain") + ")");
+    watchNameabuseSteps(plan);
+  }
+
+  // The step watch: step 1's category auto-pick, then
+  // step 2's fill. Category picks are in-form
+  // navigation — the pane clicks the two cards and
+  // step 1's Next, states plainly what it did, and
+  // never treats that as filing anything. A card or
+  // the Next button that can't be matched confidently
+  // is never guess-clicked: the pane falls back to
+  // naming the clicks for the user and moves on to
+  // watching for step 2 (the user may pick by hand).
+  // Step 2's own Next is never clicked — step 3 asks
+  // for the user's own details.
+  function watchNameabuseSteps(plan) {
+    var startedAt = Date.now();
+    var phase = "category"; // → "details" → "done"
+    var catState = "main";  // main → sub → next
+    var catStateAt = Date.now();
+    var reported = false;
+    var timer = setInterval(function () {
+      if (Date.now() - startedAt > 15 * 60 * 1000) {
+        clearInterval(timer);
+        Diag.debug("nameabuse: step watch cap " +
+          "reached \u2014 standing down");
+        return;
+      }
+      if (phase === "category") {
+        if (naStep2Visible()) {
+          // Already past step 1 (the user picked by
+          // hand, or the page came back mid-flow).
+          phase = "details";
+          return;
+        }
+        if (catState === "main") {
+          var main = naCardClickTarget(
+            "DNS Abuse Complaint");
+          if (main) {
+            main.click();
+            catState = "sub";
+            catStateAt = Date.now();
+            Diag.debug("nameabuse: category \u2014 " +
+              "DNS Abuse Complaint clicked");
+          } else if (Date.now() - catStateAt > 20000) {
+            naCategoryFallback();
+          }
+        } else if (catState === "sub") {
+          var sub = naCardClickTarget(
+            "Spam (Distribution Vector)");
+          if (sub) {
+            sub.click();
+            catState = "next";
+            catStateAt = Date.now();
+            Diag.debug("nameabuse: category \u2014 " +
+              "Spam (Distribution Vector) clicked");
+          } else if (Date.now() - catStateAt > 15000) {
+            naCategoryFallback();
+          }
+        } else if (catState === "next") {
+          var next = naFindNextButton();
+          if (next) {
+            next.click();
+            phase = "details";
+            reported = true;
+            var lines = nameabuseCategoryLines("picked");
+            Diag.set("lead", lines.lead);
+            Diag.set("sub1", lines.sub1);
+            Diag.set("sub2", "");
+            Diag.debug("nameabuse: category \u2014 " +
+              "Next clicked; step 1 done");
+          } else if (Date.now() - catStateAt > 15000) {
+            naCategoryFallback();
+          }
+        }
+        return;
+      }
+      if (phase === "details") {
+        if (naStep2Visible()) {
+          phase = "done";
+          clearInterval(timer);
+          fillNameabuseStep2(plan);
+        }
+      }
+    }, 500);
+    function naCategoryFallback() {
+      if (reported) return;
+      reported = true;
+      phase = "details";
+      // v1.0.83: the fallback says what DID land. The
+      // state at the moment of failure decides which
+      // line the pane shows — never a blanket "couldn't
+      // pick" over a card that is sitting selected.
+      var status = catState === "sub"
+        ? "fallback-sub"
+        : (catState === "next" ? "fallback-next"
+           : "fallback");
+      var lines = nameabuseCategoryLines(status);
+      Diag.set("lead", lines.lead);
+      Diag.set("sub1", lines.sub1);
+      Diag.set("sub2", "");
+      Diag.debug("nameabuse: category auto-pick " +
+        "stalled in state " + catState + " \u2014 fell " +
+        "back to telling the user");
+    }
+  }
+
+  // Step 2's fill pass — the GoDaddy discipline: fill,
+  // verify, report each field in the pane, never
+  // overwrite text the user typed, and stop there.
+  // Registration years and Official Website are not in
+  // the plan at all (optional, and not knowable from a
+  // message); the Evidence Upload file input is the
+  // user's to attach. The pass ends by handing the
+  // next step to the user — complainant details are
+  // theirs, the FTC rule.
+  function fillNameabuseStep2(plan) {
+    var FIELDS = [
+      { key: "domain", value: plan.domainDefanged },
+      { key: "abuseUrl", value: plan.abuseUrl },
+      { key: "description", value: plan.description }
+    ];
+    var outcomes = {};
+    Diag.debug("nameabuse: filling the details step");
+    fillNext(0);
+    function fillNext(i) {
+      if (i >= FIELDS.length) { finishFill(); return; }
+      var f = FIELDS[i];
+      if (!f.value) {
+        outcomes[f.key] = "skipped";
+        Diag.debug("nameabuse: " + f.key +
+          " \u2014 nothing planned");
+        fillNext(i + 1);
+        return;
+      }
+      var el = naFindField(f.key);
+      if (!el) {
+        outcomes[f.key] = "notfound";
+        Diag.debug("nameabuse: " + f.key +
+          " box not found");
+        fillNext(i + 1);
+        return;
+      }
+      if (String(el.value || "").trim()) {
+        outcomes[f.key] = "already";
+        Diag.debug("nameabuse: " + f.key +
+          " already held text \u2014 left alone");
+        fillNext(i + 1);
+        return;
+      }
+      setVerified(el, f.value, function (ok) {
+        outcomes[f.key] = ok ? "filled" : "wiped";
+        Diag.debug("nameabuse: " + f.key + " " +
+          (ok ? "filled + verified" : "would not stick"));
+        fillNext(i + 1);
+      });
+    }
+    function finishFill() {
+      var anyFilled = FIELDS.some(function (f) {
+        return outcomes[f.key] === "filled";
+      });
+      // The stash is single-use: erase it once a fill
+      // has landed, so a later visit to this form
+      // doesn't refill it from a stale case.
+      if (anyFilled) clearStash();
+      var lines = nameabuseOutcomeLines(plan, outcomes);
+      Diag.set("lead", lines.lead);
+      Diag.set("sub1", lines.sub1);
+      Diag.set("sub2", lines.sub2);
+      Diag.debug("nameabuse: details fill pass done");
     }
   }
 })();

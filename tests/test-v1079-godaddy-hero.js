@@ -55,7 +55,7 @@ function ok(name, cond, extra) {
 
 // ---------- manifest ----------
 ok("manifest: version is 1.0.79",
-  manifest.version === "1.0.74");
+  manifest.version === "1.0.84");
 
 // ---------- the pure helpers, extracted + run ----------
 let P = null;
@@ -216,8 +216,13 @@ ok("watch: armed from page load on the portal, from " +
     .length >= 4);
 (function () {
   const initAt = reportfillSrc.indexOf("Diag.init();");
+  // v1.0.82 widens this window: the nameabuse hosts'
+  // own load-time Guide-header block now sits between
+  // the GoDaddy arming and the stash read, so the read
+  // lands further down the file. The assertions are
+  // unchanged: they pin the arming's order.
   const seg = initAt === -1 ? "" :
-    reportfillSrc.slice(initAt, initAt + 1400);
+    reportfillSrc.slice(initAt, initAt + 2200);
   ok("watch: the page-load arming sets the Guide header " +
      "and starts before the stash read",
     seg.indexOf('location.hostname === ' +
@@ -245,8 +250,17 @@ ok("watch: armed from page load on the portal, from " +
 
 // ---------- the fill stands down on a confirmation page ----------
 (function () {
-  const seg = reportfillSrc.slice(
-    reportfillSrc.indexOf("function fillGoDaddy("));
+  // v1.0.82 narrows this segment the way the v1.0.78
+  // suite's was: the nameabuse section follows
+  // fillGoDaddy in the file now, and these pins are
+  // about the GoDaddy pass only.
+  const gdStart = reportfillSrc.indexOf(
+    "function fillGoDaddy(");
+  const gdEnd = reportfillSrc.indexOf(
+    "/* ---------------- nameabuse platform");
+  const seg = gdStart === -1 ? "" :
+    reportfillSrc.slice(gdStart,
+      gdEnd === -1 ? undefined : gdEnd);
   ok("fill: the confirmation check runs before any " +
      "fill copy is set",
     seg.indexOf(

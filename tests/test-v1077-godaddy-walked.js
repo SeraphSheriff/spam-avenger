@@ -56,7 +56,7 @@ function ok(name, cond, extra) {
 }
 
 // ---------- manifest ----------
-ok("manifest: version is 1.0.77", manifest.version === "1.0.74");
+ok("manifest: version is 1.0.77", manifest.version === "1.0.84");
 
 // ---------- lib: the lane points at the real form ----------
 const gd = analyze.registrarFormLane({ registrarInfo: {
@@ -170,23 +170,26 @@ ok("urls: the message's links, one per line",
     "http://southerncofc.org.au/verify");
 
 // ---------- content: the walked kit ----------
-const gdSegStart = contentSrc.indexOf('regKit === "godaddy"');
-const gdSegEnd = contentSrc.indexOf(
-  "the four new desks' field guides");
+const gdSegStart = contentSrc.indexOf('kit === "godaddy"');
+const gdSegEnd = contentSrc.indexOf('kit === "alibaba"',
+  gdSegStart);
 const gdSeg = gdSegStart === -1 || gdSegEnd <= gdSegStart
   ? "" : contentSrc.slice(gdSegStart, gdSegEnd);
-ok("content: GoDaddy has its own walked-guide branch, " +
-   "ahead of the provisional branch",
+ok("content: v1.0.83 \u2014 GoDaddy has its own branch " +
+   "in the merged actions box",
   gdSegStart !== -1 && gdSeg.length > 0);
-ok("content: the walked guide keeps the desk framing " +
-   "(mailbox not monitored, form mandatory, API bulk lane)",
-  gdSeg.indexOf("is not monitored") !== -1 &&
-  gdSeg.indexOf("must go through its form") !== -1 &&
-  gdSeg.indexOf("developer API") !== -1);
-ok("content: the walked guide states the direct landing " +
-   "(the category page is skipped entirely)",
-  gdSeg.indexOf("category page is skipped") !== -1 &&
-  gdSeg.indexOf("the first thing you see is") !== -1);
+ok("content: v1.0.83 \u2014 the desk framing is CUT " +
+   "from the GoDaddy steps (mailbox story, API bulk " +
+   "lane); the steps are actions only",
+  gdSeg.indexOf("is not monitored") === -1 &&
+  gdSeg.indexOf("developer API") === -1 &&
+  gdSeg.indexOf("phishing report form") !== -1 &&
+  gdSeg.indexOf("Submit the form yourself") !== -1);
+ok("content: the steps state the direct landing \u2014 " +
+   "the button opens the phishing form itself",
+  gdSeg.indexOf("It opens the") !== -1 &&
+  gdSeg.indexOf("phishing report form.") !== -1 &&
+  gdSeg.indexOf("category page") === -1);
 ok("content: the walked guide is NOT marked provisional",
   gdSeg.indexOf("provisional") === -1);
 ok("content: the registrar render grows the per-field " +
@@ -198,11 +201,16 @@ ok("content: the registrar render grows the per-field " +
     "buildFormFieldEvidence(a, gfld.copy)") !== -1 &&
   contentSrc.indexOf('"Filling in the " + ' +
     "regFormLane.label +") !== -1);
-ok("content: the provisional branch still serves the " +
-   "other three desks",
-  contentSrc.indexOf('regKit === "newfold"') !== -1 &&
-  contentSrc.indexOf('regKit === "brandfocus"') !== -1 &&
-  contentSrc.indexOf('regKit === "enom"') !== -1 &&
+// v1.0.81 narrows this pin: BrandFocus's guide is
+// walked now and lives in its own branch (its platform
+// is the nameabuse service the Wanshang walk covered),
+// so the provisional branch serves Newfold, eNom and —
+// since v1.0.80 — Alibaba.
+ok("content: the merged box still serves the " +
+   "remaining unwalked desks, provisional line intact",
+  contentSrc.indexOf('kit === "newfold"') !== -1 &&
+  contentSrc.indexOf('kit === "alibaba"') !== -1 &&
+  contentSrc.indexOf('kit === "enom"') !== -1 &&
   contentSrc.indexOf("This guide is provisional") !== -1);
 
 console.log("\n" + pass + " passed, " + fail + " failed");

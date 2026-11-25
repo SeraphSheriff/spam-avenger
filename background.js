@@ -1,6 +1,7 @@
 /* Spam Avenger for Gmail — background worker (v1.0.73).
  *
- * A thin network proxy for the panel, and nothing more. It
+ * A thin network proxy for the panel, plus (v1.0.83) the
+ * Gmail-access toolbar badge. The proxy exists for one reason: the lane-gating checks need to fetch
  * exists for one reason: the lane-gating checks need to fetch
  * the SENDER's and the LINK's websites (arbitrary hosts a
  * content script cannot read — page-origin CORS), read DNS
@@ -175,6 +176,55 @@
         return out.slice(0, 300);
       });
   }
+
+  // v1.0.83: the Gmail-access badge. Firefox MV3 can leave
+  // the manifest's host permissions ungranted after install,
+  // so the shield silently never paints (see lib/demand.js
+  // for the popup half of this fix). While access to the
+  // Gmail origin is ungranted, the toolbar action carries a
+  // "!" badge — a visible something's-wrong mark before the
+  // user clicks anything. Granted (Chrome, always) clears
+  // it, silently. Checked at install/startup and whenever
+  // permissions change; an API that can't answer leaves the
+  // badge alone.
+  var GMAIL_ACCESS = { origins: ["https://mail.google.com/*"] };
+  function applyGmailBadge(granted) {
+    if (typeof granted !== "boolean") return;
+    if (!api.action || !api.action.setBadgeText) return;
+    try {
+      api.action.setBadgeText({ text: granted ? "" : "!" });
+      if (!granted && api.action.setBadgeBackgroundColor) {
+        api.action.setBadgeBackgroundColor(
+          { color: "#c0392b" });
+      }
+    } catch (e) {}
+  }
+  function refreshGmailBadge() {
+    if (!api.permissions || !api.permissions.contains) return;
+    try {
+      var r = api.permissions.contains(GMAIL_ACCESS,
+        function (g) { applyGmailBadge(g); });
+      if (r && typeof r.then === "function") {
+        r.then(function (g) { applyGmailBadge(g); },
+               function () {});
+      }
+    } catch (e) {}
+  }
+  if (api.runtime.onInstalled) {
+    api.runtime.onInstalled.addListener(refreshGmailBadge);
+  }
+  if (api.runtime.onStartup) {
+    api.runtime.onStartup.addListener(refreshGmailBadge);
+  }
+  if (api.permissions) {
+    if (api.permissions.onAdded) {
+      api.permissions.onAdded.addListener(refreshGmailBadge);
+    }
+    if (api.permissions.onRemoved) {
+      api.permissions.onRemoved.addListener(refreshGmailBadge);
+    }
+  }
+  refreshGmailBadge();
 
   api.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     if (!msg || msg.sa !== 1) return false;

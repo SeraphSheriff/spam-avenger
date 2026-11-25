@@ -200,7 +200,21 @@
       // no other form lane gains one: their desks deflect
       // email by policy, which is why they are form kits
       // at all.
-      emailTo: "trustandsafety@support.aws.com" },
+      emailTo: "trustandsafety@support.aws.com",
+      // v1.0.80: the door block's heading and note moved
+      // onto the lane entries (the renderer reads them
+      // from here), so a second desk with an email door —
+      // Alibaba Cloud, below — can carry its own words.
+      // These two strings are the v1.0.74 block's text,
+      // verbatim: the AWS panel renders byte-identically.
+      emailHeading: "Or email it instead \u2014 AWS Trust & Safety",
+      emailNote: "AWS also takes this report by email at " +
+        "trustandsafety@support.aws.com \u2014 the fallback " +
+        "its own form names for people who can't use the " +
+        "form. The complaint below is the same report, " +
+        "addressed to that desk; the button opens it in " +
+        "Gmail, ready to send. The form above stays " +
+        "available either way." },
     azure: { label: "Microsoft Azure",
       // The MSRC URL carries its picks with it —
       // ThreatType=IpAddress + IncidentType=Spam pre-picked
@@ -266,7 +280,89 @@
             "version: the facts and the defanged links, no " +
             "headers \u2014 the full headers ride in the " +
             "Additional information paste above.",
-          copy: "msrcNotes" } ] }
+          copy: "msrcNotes" } ] },
+    alibaba: { label: "Alibaba Cloud",
+      // v1.0.80: the fourth hyperscaler form lane (lib
+      // hyperscalerOf's "alibaba"). Alibaba Cloud's abuse
+      // desk answered Michael's emailed fkjigh.com
+      // complaint within minutes (Nov 24 2026) but closed
+      // by directing reports to its Reporting Center —
+      // the form-preference pattern the other three lanes
+      // exist for. Alibaba's own reporting documentation
+      // names the path: in the Reporting Center,
+      // "Illegal Information Reporting" is the door for a
+      // domain or website carrying illegal or harmful
+      // information (spam and fraud included), with valid
+      // proof of the abuse attached; "Infringement
+      // Reporting" is the separate intellectual-property
+      // door. The Center is a script-driven page whose
+      // boxes could not be read directly and which has
+      // not been walked end-to-end, so the steps below
+      // follow Alibaba's published guidance rather than
+      // its pixels — the AWS kit's discipline — and the
+      // intro says the guide is provisional in so many
+      // words. The desk's email stays as a second door
+      // (emailTo, with its own heading/note): Alibaba's
+      // docs list DomainAbuse@service.aliyun.com as a
+      // reporting method in its own right, and the desk
+      // demonstrably reads it.
+      url: "https://www.alibabacloud.com/report",
+      linkText: "www.alibabacloud.com/report",
+      fact: "This host takes abuse reports through its Reporting Center; accepted reports are forwarded to the reported party within 5 business days.",
+      fieldsIntro: "This guide is provisional \u2014 the " +
+        "Reporting Center hasn't been walked end-to-end " +
+        "yet, so these steps follow Alibaba Cloud's own " +
+        "published reporting guidance. The Center may ask " +
+        "you to sign in with an Alibaba Cloud account. " +
+        "Your name and email boxes are yours to fill in, " +
+        "and Spam Avenger never prepares them. The steps " +
+        "below cover the report itself.",
+      fields: [
+        { box: "Report type",
+          help: "Choose \u201CIllegal Information " +
+            "Reporting\u201D \u2014 the path for a domain " +
+            "or website carrying illegal or harmful " +
+            "content, spam and fraud included. " +
+            "\u201CInfringement Reporting\u201D is the " +
+            "separate door for intellectual-property " +
+            "claims; it is not this one. Nothing to " +
+            "paste here.",
+          copy: null },
+        { box: "Description",
+          help: "What happened, in facts only: the " +
+            "message, where it came from, and when. This " +
+            "copy is the source IP, the sender, the " +
+            "subject, the date, and the message's links, " +
+            "defanged.",
+          copy: "description" },
+        { box: "Proof of abuse",
+          help: "Alibaba asks for valid proof of the " +
+            "abuse. For an email, the proof is the " +
+            "message itself: save the full original " +
+            "message as a plain text (.txt) file, " +
+            "headers included, and upload that file " +
+            "where the form takes evidence. This copy is " +
+            "the same evidence in paste form \u2014 the " +
+            "Received line and the full headers.",
+          copy: "logs" },
+        { box: "URLs in the message",
+          help: "The specific addresses the message " +
+            "carried, un-defanged exactly as they " +
+            "appeared \u2014 a URL box needs the literal " +
+            "addresses.",
+          copy: "urls" } ],
+      emailTo: "DomainAbuse@service.aliyun.com",
+      emailHeading: "Or email it instead \u2014 Alibaba " +
+        "Cloud's abuse desk",
+      emailNote: "Alibaba Cloud also takes this report " +
+        "by email at DomainAbuse@service.aliyun.com " +
+        "\u2014 its own documentation lists the address " +
+        "as a reporting method, and the desk answered a " +
+        "live complaint the same day it was sent. The " +
+        "complaint below is the same report, addressed " +
+        "to that desk; the button opens it in Gmail, " +
+        "ready to send. The form above stays available " +
+        "either way." }
   };
 
   // The fourth form lane: OVHcloud (same shape as the table
@@ -2481,8 +2577,14 @@
         // Nov 23 2026): the email door, for the one form
         // lane whose desk reads email — AWS Trust & Safety
         // (see the hint's emailTo note). Only a lane
-        // carrying emailTo grows this block; today that is
-        // AWS alone, and the form kit above it is untouched.
+        // carrying emailTo grows this block; the form kit
+        // above it is untouched. v1.0.80: a second lane
+        // carries emailTo — Alibaba Cloud (its docs list
+        // the address as a reporting method and its desk
+        // demonstrably reads it) — so the block's heading
+        // and note are read from the lane's own entry
+        // (emailHeading / emailNote); AWS's entry carries
+        // this block's original text verbatim.
         // The shape is the registrar email lane's: the
         // complaint in a box (To / Subject / body — the
         // full sample rides in the body, as on every email
@@ -2499,16 +2601,24 @@
         if (formLane.emailTo) {
           var awsMail = { to: formLane.emailTo,
             subject: c.subject, body: c.body };
+          // v1.0.80: the heading and note are the lane's
+          // own (emailHeading / emailNote on its hint
+          // entry) — AWS's entry carries the v1.0.74 text
+          // verbatim, so its panel is unchanged; Alibaba
+          // Cloud's entry carries its desk's words. The
+          // generic fallback below serves any future lane
+          // that sets emailTo without its own text.
           kw.appendChild(h("b", null,
-            "Or email it instead \u2014 AWS Trust & Safety"));
+            formLane.emailHeading ||
+              ("Or email it instead \u2014 " + formLane.label)));
           kw.appendChild(h("p", { "class": "sf-note" },
-            "AWS also takes this report by email at " +
-            formLane.emailTo + " \u2014 the fallback its own " +
-            "form names for people who can't use the form. " +
-            "The complaint below is the same report, " +
-            "addressed to that desk; the button opens it " +
-            "in Gmail, ready to send. The form above stays " +
-            "available either way."));
+            formLane.emailNote ||
+              (formLane.label + " also takes this report " +
+               "by email at " + formLane.emailTo + ". The " +
+               "complaint below is the same report, " +
+               "addressed to that desk; the button opens " +
+               "it in Gmail, ready to send. The form above " +
+               "stays available either way.")));
           var emTa = h("textarea",
             { id: "sf-aws-email-text" });
           emTa.readOnly = true;
@@ -3284,6 +3394,201 @@
             "not published"));
         }
       }
+      // v1.0.83: the registrar form kits' ONE box — a bold
+      // heading and the numbered steps the USER takes, per
+      // kit. The BrandFocus steps are Michael's approved
+      // copy of Nov 24 2026, verbatim.
+      // v1.0.84: the two nameabuse kits' steps grow by
+      // the three steps Michael's completed BrandFocus
+      // filing walked the same day (ZYABUSE-
+      // 202611250910-3887): the Measures checkboxes on
+      // the details step, the emailed 6-digit code on
+      // the complainant step — real on zy after all; it
+      // lives at step 3, behind "Send Verification
+      // Code", and the code email is entirely in
+      // Chinese — and the six declaration boxes on the
+      // review step. Wanshang carries the same three
+      // (its code step is walked fact since Nov 21
+      // 2026, complaint WSABUSE-202611212348-8027, and
+      // the platform's step structure is now confirmed
+      // on zy too). July Name's steps are its
+      // own walk (Nov 8 2026, case JY202611090000004):
+      // Personal, its own emailed code, the report-type
+      // boxes, the required legal-website field, the
+      // required screenshot. GoDaddy's are its walked
+      // autofill shape (Nov 23 2026). Newfold, eNom and
+      // Alibaba were never walked end-to-end, so their
+      // steps carry only what their desks' own replies
+      // proved, plus the provisional line.
+      function regActionsBox(kit, lane) {
+        var head = "Use their form \u2014 this registrar " +
+          "takes no reports by email.";
+        var steps;
+        if (kit === "brandfocus") {
+          steps = [
+            "1. Click the button below. It copies your " +
+              "report and opens the form.",
+            "2. Spam Avenger picks the category and " +
+              "fills in the report details for you.",
+            "3. For Measures Already Taken, check only " +
+              "what\u2019s true \u2014 if you haven\u2019t " +
+              "done any of them, check \u201CNo measures " +
+              "have been taken.\u201D",
+            "4. The complainant step asks for your own " +
+              "details. Fill those in, click Send " +
+              "Verification Code, and type in the " +
+              "6-digit code it emails you. The email is " +
+              "in Chinese; the code is the number in " +
+              "it, and Gmail\u2019s Translate button " +
+              "can read the rest. It\u2019s valid for " +
+              "5 minutes.",
+            "5. The last step asks you to read and " +
+              "check six declaration boxes \u2014 those " +
+              "are yours \u2014 then click Submit.",
+            "6. Save the complaint number it gives you."
+          ];
+        } else if (kit === "wanshang") {
+          steps = [
+            "1. Click the button below. It copies your " +
+              "report and opens the form.",
+            "2. Spam Avenger picks the category and " +
+              "fills in the report details for you.",
+            "3. For Measures Already Taken, check only " +
+              "what\u2019s true \u2014 if you haven\u2019t " +
+              "done any of them, check \u201CNo measures " +
+              "have been taken.\u201D",
+            "4. The complainant step asks for your own " +
+              "details. Fill those in, click Send " +
+              "Verification Code, and type in the " +
+              "6-digit code it emails you. The email is " +
+              "in Chinese; the code is the number in " +
+              "it, and Gmail\u2019s Translate button " +
+              "can read the rest. It\u2019s valid for " +
+              "5 minutes.",
+            "5. The last step asks you to read and " +
+              "check six declaration boxes \u2014 those " +
+              "are yours \u2014 then click Submit.",
+            "6. Save the complaint number it gives " +
+              "you \u2014 it starts with WSABUSE-."
+          ];
+        } else if (kit === "julyname") {
+          steps = [
+            "1. Click the button below. It copies your " +
+              "report and opens the form.",
+            "2. If the form opens in Chinese, translate " +
+              "it: use your browser\u2019s translate " +
+              "button, at the right end of the address bar.",
+            "3. Where the form asks who you are, choose " +
+              "Personal. Enter an email address you can " +
+              "read, click \u201CSend code\u201D, and type " +
+              "in the 6-digit code it emails you.",
+            "4. For the report type, check the first " +
+              "box \u2014 fraud / phishing email. If the " +
+              "spam links to a fake store, check the " +
+              "second box (fraudulent phishing / " +
+              "counterfeit websites) too.",
+            "5. Paste the copied report into the " +
+              "description field \u2014 it is built to fit " +
+              "the form\u2019s 1,000-character cap. In " +
+              "the \u201Clegal website\u201D field, put " +
+              "the real website of the brand the spam is " +
+              "impersonating (like www.brand.com) \u2014 " +
+              "the form will not submit without it.",
+            "6. Attach a screenshot that clearly shows " +
+              "the reported domain and the date and " +
+              "time \u2014 the form requires one. The easy " +
+              "source: open the message\u2019s three-dot " +
+              "menu in Gmail, choose \u201CShow " +
+              "original\u201D, and screenshot the summary " +
+              "table at the top.",
+            "7. Submit, and save the report number it " +
+              "gives you \u2014 it starts with JY."
+          ];
+        } else if (kit === "godaddy") {
+          steps = [
+            "1. Click the button below. It opens the " +
+              "phishing report form.",
+            "2. Spam Avenger fills in the boxes it " +
+              "can. The guide pane on the form page says " +
+              "what it filled and what it left, and why.",
+            "3. Review the filled form. If a box sits " +
+              "empty, its text is in the steps under " +
+              "the button here.",
+            "4. Submit the form yourself \u2014 nothing " +
+              "is ever sent for you."
+          ];
+        } else if (kit === "alibaba") {
+          head = "Use their form \u2014 this registrar\u2019s " +
+            "email desk answers, but it directs reports " +
+            "to its own form.";
+          steps = [
+            "1. Click the button below. It copies your " +
+              "report and opens the Alibaba Cloud " +
+              "Reporting Center.",
+            "2. Choose \u201CIllegal Information " +
+              "Reporting\u201D \u2014 that is the path for " +
+              "spam and fraud. (\u201CInfringement " +
+              "Reporting\u201D is for intellectual-" +
+              "property claims only.)",
+            "3. Paste the copied report into the " +
+              "description field, and when it asks for " +
+              "proof, upload the full original message " +
+              "as a plain text (.txt) file, headers " +
+              "included.",
+            "4. Review and submit. The email complaint " +
+              "stays below, if you\u2019d rather send it " +
+              "that way."
+          ];
+        } else if (kit === "newfold") {
+          steps = [
+            "1. Click the button below. It copies your " +
+              "report and opens the form.",
+            "2. Paste the copied report into the field " +
+              "that asks what happened \u2014 the text is " +
+              "the report itself.",
+            "3. Fill in your own details where the form " +
+              "asks, review, and submit.",
+            "4. This guide is provisional \u2014 this " +
+              "form hasn\u2019t been walked end-to-end " +
+              "yet. If a field doesn\u2019t match these " +
+              "steps, trust the form in front of you."
+          ];
+        } else if (kit === "enom") {
+          steps = [
+            "1. Click the button below. It copies your " +
+              "report and opens the form.",
+            "2. Fill out every required field \u2014 " +
+              "that is their rule. Paste the copied " +
+              "report into the field that asks for " +
+              "detail; it carries the sender, the links " +
+              "and the headers.",
+            "3. Review and submit \u2014 their Compliance " +
+              "team picks reports up from the form, not " +
+              "from email.",
+            "4. This guide is provisional \u2014 this " +
+              "form hasn\u2019t been walked end-to-end " +
+              "yet. If a field doesn\u2019t match these " +
+              "steps, trust the form in front of you."
+          ];
+        } else {
+          steps = [
+            "1. Click the button below. It copies your " +
+              "report and opens the " + lane.label +
+              " abuse form.",
+            "2. Paste the copied report into the field " +
+              "that asks what happened.",
+            "3. Fill in your own details where the form " +
+              "asks, review, and submit."
+          ];
+        }
+        var box = h("p", { "class": "sf-note" },
+          h("b", null, head));
+        steps.forEach(function (ln) {
+          box.appendChild(h("br"));
+          box.appendChild(document.createTextNode(ln));
+        });
+        return box;
+      }
       var ri = a.registrarInfo;
       // v1.0.73 (queued-registrar-no-contact.md): a registrar
       // record with NO registrar name and NO abuse contact —
@@ -3371,7 +3676,11 @@
           // email complaint, no Open in Gmail, no
           // copy-the-address button in this section — the
           // email desk is retired, so the fact rows above are
-          // all that remains of the email presentation. The
+          // all that remains of the email presentation.
+          // (v1.0.80 exception: a lane carrying emailStays —
+          // Alibaba Cloud — keeps its email complaint below
+          // the kit; see the regEmailStays render after this
+          // block.) The
           // form open is the lane's launched action, badged
           // like every form kit. v1.0.73: TWO kits share this
           // render — July Name's (the original) and Wanshang
@@ -3396,298 +3705,34 @@
           // like the hyperscaler kits — renders the lane's
           // per-field steps under its button. The other
           // three stay provisional.
+          // v1.0.81: BrandFocus leaves the generic branch
+          // the same way — its own note and a WALKED guide
+          // below (its platform is the outsourced service
+          // the Wanshang walk covered). Newfold and eNom
+          // stay provisional; Alibaba (v1.0.80) keeps its
+          // own note over a provisional guide.
           var regKit = regFormLane.kit || "julyname";
-          if (regKit === "wanshang") {
-            rw.appendChild(h("p", { "class": "sf-note" },
-              "This registrar doesn't take abuse reports by " +
-              "email \u2014 reports go through its own form. Your " +
-              "report details are in the box below. The button " +
-              "copies them to your clipboard and opens the " +
-              "Wanshang abuse form. On the form, paste into " +
-              "the description field \u2014 Ctrl+V, or right-click " +
-              "and choose Paste \u2014 then submit the form."));
-          } else if (regKit === "julyname") {
-            rw.appendChild(h("p", { "class": "sf-note" },
-              "This registrar doesn't take abuse reports by " +
-              "email \u2014 reports go through its own form. Your " +
-              "report details are in the box below. The button " +
-              "copies them to your clipboard and opens the " +
-              "July Name abuse form. On the form, paste into " +
-              "the details field \u2014 Ctrl+V, or right-click " +
-              "and choose Paste \u2014 then submit the form."));
-          } else if (regKit === "godaddy") {
-            // v1.0.78: the note changes because the button
-            // does — it no longer just copies and opens.
-            // The GoDaddy form is a plain web form, so it
-            // gets the FTC / Safe Browsing treatment: the
-            // button stashes the case and opens the form,
-            // and reportfill.js fills the boxes in on the
-            // other side. The evidence box and the
-            // per-field steps below stay as the by-hand
-            // fallback.
-            rw.appendChild(h("p", { "class": "sf-note" },
-              "This registrar doesn't take abuse reports by " +
-              "email \u2014 reports go through its own form. " +
-              "The button below opens that form and Spam " +
-              "Avenger fills in its boxes for you: the brand " +
-              "being impersonated, the message's links, the " +
-              "description, and your email address if you " +
-              "saved one for your data-deletion letters. " +
-              "You review the filled form and submit it " +
-              "yourself \u2014 nothing is ever sent for you. " +
-              "The boxes below stay here in case you'd " +
-              "rather paste everything in by hand."));
-          } else {
-            rw.appendChild(h("p", { "class": "sf-note" },
-              "This registrar doesn't take abuse reports by " +
-              "email \u2014 reports go through its own form. Your " +
-              "report details are in the box below. The button " +
-              "copies them to your clipboard and opens the " +
-              regFormLane.label + " abuse form. On the form, " +
-              "paste into the description field \u2014 Ctrl+V, or " +
-              "right-click and choose Paste \u2014 then submit " +
-              "the form."));
-          }
-          // Public 1.0.72 release (internal build .73): the
-          // field guide to the registrar's own form, REWRITTEN
-          // after Michael's live walk of Nov 8 2026 (a real
-          // report went through: case JY202611090000004).
-          // Every word is written TO the user who will face
-          // this form, second person, in the order the hoops
-          // are hit: Chinese only; an emailed verification
-          // code whose "can't be empty" error may surface
-          // beside an unrelated field; a REQUIRED legal-
-          // website field; a description box capped at 1,000
-          // characters (which is why the kit now copies a
-          // short text); a REQUIRED screenshot that must
-          // show the domain and the date; an anti-bot shield
-          // that can serve a blank page; and errors that
-          // arrive one at a time. It corrects the earlier
-          // guide on the screenshot, which is required, not
-          // optional. Panel-only text — none of it enters
-          // the copied evidence.
-          if (regKit === "wanshang") {
-            // v1.0.73: the Wanshang field guide, written
-            // from Michael's live walk of the real form on
-            // Nov 21 2026 (his jiuzhicui.com report went
-            // through: complaint WSABUSE-202611212348-8027).
-            // The hoops, in the order they are hit: Chinese
-            // only; an emailed 6-digit verification code
-            // with a 5-minute life (his first code arrived
-            // late and a resend was needed); an abuse-URL
-            // field that rejects any URL on a domain other
-            // than the complained one; a description capped
-            // at 2,000 characters (why the kit copies a
-            // short text); a WSABUSE- complaint number and
-            // a Track Complaint page. Panel-only text.
-            rw.appendChild(h("p", { "class": "sf-note" },
-              h("b", null, "Walking their form:"), h("br"),
-              "Heads-up: the form is in Chinese. To read it " +
-              "in English, use your browser's translate " +
-              "button \u2014 in Firefox, the icon at the right " +
-              "end of the address bar (or right-click the " +
-              "page and choose Translate Page).", h("br"),
-              "The form verifies your email before it lets " +
-              "you file: enter an email address you can " +
-              "read and it sends a 6-digit code, good for " +
-              "five minutes. Mail can arrive late \u2014 if " +
-              "no code lands, use the form's resend once " +
-              "and enter the newest code.", h("br"),
-              "For the abuse type, choose DNS Abuse / " +
-              "Phishing.", h("br"),
-              "The abuse-URL field must point at the " +
-              "reported domain itself \u2014 the form rejects " +
-              "URLs on any other domain. The spam's real " +
-              "links ride in the description instead: the " +
-              "text the button copies already carries " +
-              "them, so paste it in exactly as copied.", h("br"),
-              "The description field caps at 2,000 " +
-              "characters, and the form rejects anything " +
-              "longer. That cap is why the text the button " +
-              "copies is short.", h("br"),
-              "When it accepts, write down the complaint " +
-              "number \u2014 it starts with WSABUSE-. A " +
-              "confirmation email follows, and the site's " +
-              "Track Complaint page shows the report's " +
-              "progress under that number."));
-          } else if (regKit === "julyname") {
-          rw.appendChild(h("p", { "class": "sf-note" },
-            h("b", null, "Walking their form:"), h("br"),
-            "Heads-up: the form is in Chinese. To read it " +
-            "in English, use your browser's translate " +
-            "button \u2014 in Firefox, the icon at the right " +
-            "end of the address bar (or right-click the " +
-            "page and choose Translate Page).", h("br"),
-            "Where the form asks who you are, choose " +
-            "Personal.", h("br"),
-            "Enter an email address you can read, then " +
-            "click \u201CSend code\u201D: the form emails you a " +
-            "6-digit code to type into the verification " +
-            "field. That's the " +
-            "registrar's gate, not Spam Avenger's. " +
-            "If you submit with the code field " +
-            "empty, the form answers \u201CIt can't be empty\u201D " +
-            "\u2014 and that error may pop up next to an " +
-            "unrelated field. The scolding means the code.", h("br"),
-            "For the report type, check the first box " +
-            "\u2014 fraud / phishing email. If the spam " +
-            "links to a fake store, check the second box " +
-            "(fraudulent phishing / counterfeit websites) " +
-            "too.", h("br"),
-            "The domain field takes the reported domain " +
-            "alone. The link field takes the spam's link " +
-            "as a normal https address \u2014 the text the " +
-            "button copies already carries the link in " +
-            "that form, so copy it from there.", h("br"),
-            "The \u201Clegal website\u201D field wants " +
-            "the real website of the brand the spam is " +
-            "impersonating, written like www.brand.com " +
-            "\u2014 and it is a required field: the form " +
-            "will not submit without it.", h("br"),
-            "The description field has a hard cap: " +
-            "1,000 characters, and the form rejects " +
-            "anything longer. That cap is why the text " +
-            "the button copies is short. Paste it in " +
-            "exactly as copied \u2014 the full headers " +
-            "ride in the screenshot below.", h("br"),
-            "A screenshot is required \u2014 the field has " +
-            "a red asterisk \u2014 and it must clearly show " +
-            "the reported domain name and the date and " +
-            "time. The easy source is this message itself: " +
-            "open Gmail's three-dot menu on the message " +
-            "and choose \u201CShow original\u201D, then screenshot " +
-            "the summary table at the top \u2014 it shows " +
-            "the sender, the domain, the subject and the " +
-            "date in one frame. Printing that page to a " +
-            "PDF works too; the form takes png, jpg, gif " +
-            "or pdf up to 8M.", h("br"),
-            "Their site runs anti-bot armor: if a page " +
-            "loads blank, or an upload won't stick, that " +
-            "is their shield, not your mistake \u2014 " +
-            "reload and try again.", h("br"),
-            "The form reports problems one at a time: " +
-            "fix the field it names, submit again, and " +
-            "the next problem \u2014 if there is one \u2014 " +
-            "will name the next field.", h("br"),
-            "When it finally accepts, write down the " +
-            "report number it shows \u2014 it starts with JY. " +
-            "A notification email follows, and you can " +
-            "check the report's progress with that number."));
-          } else if (regKit === "godaddy") {
-            // v1.0.77: the GoDaddy field guide, written
-            // from Michael's live walk of the real form on
-            // Nov 23 2026. The v1.0.74 lane opened
-            // abuseform.com — GoDaddy's Report Abuse page,
-            // a category picker (Phishing, Malware, Child
-            // Safety, Intellectual Property, UK/EU
-            // Complaints, Public Safety) with no field on
-            // it. The lane's link now opens the phishing
-            // report itself (legalportal.godaddy.com/abuse/
-            // phishing), and the per-field steps under the
-            // button walk its boxes in its order. What
-            // remains for this guide is the desk's framing
-            // and the one navigation fact. Panel-only text.
-            rw.appendChild(h("p", { "class": "sf-note" },
-              h("b", null, "Walking their form:"), h("br"),
-              "What the email desk does: nothing \u2014 " +
-              "GoDaddy's own auto-reply says its abuse " +
-              "mailbox is not monitored, and that a " +
-              "report must go through its form. Emailing " +
-              "it again changes nothing.", h("br"),
-              "The button below opens the phishing report " +
-              "itself \u2014 the category page is skipped " +
-              "entirely, so the first thing you see is " +
-              "the form.", h("br"),
-              // v1.0.78: the fill itself — the guide pane
-              // on the form page reports what landed.
-              "When the form opens, Spam Avenger fills " +
-              "in the boxes it can, and the guide pane " +
-              "in the corner of the form page says what " +
-              "it filled and what it left, and why. " +
-              "Check those lines before you submit; if " +
-              "a box sits empty, its copy is in the " +
-              "steps under the button.", h("br"),
-              "Reporting in bulk? GoDaddy also takes " +
-              "abuse reports through its developer API " +
-              "(the abuse endpoint under " +
-              "developer.godaddy.com) \u2014 a lane for " +
-              "tooling, not for a single report like " +
-              "this one."));
-          } else {
-            // v1.0.74: the four new desks' field guides —
-            // PROVISIONAL, every one. None of these forms
-            // has been walked end-to-end yet; each desk was
-            // proven form-only by the reply to Michael's own
-            // emailed complaint (Nov 23 2026), and the
-            // guides carry only what those replies prove,
-            // plus the one instruction that survives any
-            // form: the evidence in the box IS the report.
-            // A live filing walk replaces a guide's
-            // provisional lines with field facts, exactly
-            // as the July Name and Wanshang walks did for
-            // theirs. Panel-only text, like every guide.
-            // v1.0.77: THREE desks remain on this branch —
-            // GoDaddy's walk landed (see its own branch
-            // above), exactly the replacement this comment
-            // predicted.
-            var regGuideLines = [];
-            if (regKit === "newfold") {
-              regGuideLines.push(
-                "What the email desk does: it answers with " +
-                "an autoresponder \u2014 do not reply \u2014 that " +
-                "sends every abuse report (phishing, " +
-                "malware, and spam used to deliver them) to " +
-                "this form. An emailed complaint goes no " +
-                "further.");
-              regGuideLines.push(
-                "Newfold Digital is the company behind " +
-                "Web.com and Network Solutions, so this one " +
-                "form covers all three brands' domains.");
-            } else if (regKit === "brandfocus") {
-              regGuideLines.push(
-                "What the email desk does: its auto-reply " +
-                "(in Chinese and English) says the mailbox " +
-                "will no longer accept domain name abuse " +
-                "complaints \u2014 every report goes through " +
-                "its online reporting platform instead.");
-              regGuideLines.push(
-                "The platform is the same outsourced " +
-                "abuse-report service Wanshang uses, under " +
-                "this registrar's own subdomain \u2014 expect " +
-                "the same shape there, including an emailed " +
-                "verification code before the form lets " +
-                "you file.");
-            } else if (regKit === "enom") {
-              regGuideLines.push(
-                "What the email desk does: it acknowledges " +
-                "the email, but nothing is acted on there " +
-                "\u2014 the reply routes abuse issues to this " +
-                "form, where the Compliance team picks " +
-                "them up (\u201ca member of our team will " +
-                "reach out\u201d, in their words).");
-              regGuideLines.push(
-                "eNom is a Tucows registrar; the form is " +
-                "its Abuse Policy page \u2014 fill out all " +
-                "the required fields, in their words, and " +
-                "give as much detail as possible: the text " +
-                "the button copies is that detail.");
-            }
-            regGuideLines.push(
-              "This guide is provisional \u2014 this form " +
-              "hasn't been walked end-to-end yet. If a " +
-              "field doesn't match these notes, trust the " +
-              "form in front of you: the text the button " +
-              "copies is the report itself, and it goes " +
-              "into whichever field asks what happened.");
-            var regGuide = h("p", { "class": "sf-note" },
-              h("b", null, "Walking their form:"));
-            regGuideLines.forEach(function (ln) {
-              regGuide.appendChild(h("br"));
-              regGuide.appendChild(
-                document.createTextNode(ln));
-            });
-            rw.appendChild(regGuide);
-          }
+          // v1.0.83: ONE actions-only box per kit. Until
+          // now each kit carried TWO blue boxes — an intro
+          // note and a "Walking their form" guide — and
+          // even cut down they were mostly background:
+          // dead-mailbox stories, platform kinship, scope
+          // warnings, framing advice, and field limits on
+          // boxes the add-on fills itself. Michael's call
+          // (Nov 24 2026): "they don't care about the
+          // background shit, they just need to know what
+          // they have to do." So the note and the guide
+          // merge into a single box of numbered steps —
+          // only what the USER does. Framing lives in the
+          // evidence text the kit copies; caps the kit
+          // builds against are the kit's problem, not the
+          // user's reading. Each kit's steps are drawn
+          // ONLY from that kit's own walked facts — never
+          // borrowed from a sibling lane's walk (the
+          // BrandFocus 6-digit-code correction: that step
+          // is Wanshang's walked fact, and it appears in
+          // Wanshang's steps and nowhere else).
+          rw.appendChild(regActionsBox(regKit, regFormLane));
           rw.appendChild(h("b", null,
             regKit === "wanshang"
               ? "Form evidence \u2014 paste into the Wanshang " +
@@ -3741,6 +3786,73 @@
                   "registrarDescription")
             } };
           }
+          // v1.0.82: the nameabuse kits — BrandFocus and
+          // Wanshang, the same outsourced reporting
+          // service under per-registrar subdomains — carry
+          // a stash payload too. Both lanes now link the
+          // service's complaint form itself (submit.php),
+          // where reportfill.js walks the form with the
+          // user: it picks the spam category, fills the
+          // details step, and never submits. The payload
+          // is the kit's own slices — the reported domain
+          // (the GoDaddy derivation above) and the short
+          // evidence the box above carries. The button
+          // stays copy-and-open, as the kits' notes
+          // promise; the stash is written first and the
+          // copy/open proceeds when the write lands (or
+          // fails, or the safety timer fires) — the
+          // stashThenOpen ordering discipline, without
+          // its status-line side effects. The stash shape
+          // below mirrors stashThenOpen's exactly, with
+          // the nameabuse payload in place of GoDaddy's.
+          var naPayload = null;
+          if (regKit === "brandfocus" ||
+              regKit === "wanshang") {
+            var naDom = "";
+            try {
+              naDom = window.SpamAvenger.registrableDomain(
+                  a.senderDomain || "") ||
+                ((window.SpamAvenger.senderEmail(a.from)
+                  .match(/@([\w.-]+)/) || [])[1] || "");
+            } catch (e) {}
+            naPayload = { nameabuse: {
+              kit: regKit,
+              label: regFormLane.label,
+              domain: naDom,
+              description: window.SpamAvenger
+                .buildFormFieldEvidence(a,
+                  "registrarDescription")
+            } };
+          }
+          function stashNaThen(done) {
+            var finished = false;
+            function finish() {
+              if (!finished) { finished = true; done(); }
+            }
+            try {
+              if (typeof chrome === "undefined" ||
+                  !chrome.storage || !chrome.storage.local) {
+                finish();
+                return;
+              }
+              setTimeout(finish, 800);
+              chrome.storage.local.set({ pendingReport: {
+                urls: (a.urls || []).slice(0, 10),
+                from: a.from || "",
+                subject: a.subject || "",
+                ip: a.ip || "",
+                server: a.host || "",
+                date: a.date || "",
+                sextortion: false,
+                wallet: null,
+                fromSpoofed: false,
+                godaddy: null,
+                nameabuse: (naPayload &&
+                  naPayload.nameabuse) || null,
+                savedAt: Date.now()
+              } }, function () { finish(); });
+            } catch (e) { finish(); }
+          }
           var rFormBtnLabel = h("span",
             { "class": "sf-btn-label" },
             regKit === "godaddy"
@@ -3768,6 +3880,12 @@
                 "registrar", gdPayload)();
               return;
             }
+            // v1.0.82: for the nameabuse kits, the
+            // copy/open below is wrapped as proceed() and
+            // runs only after the payload stash lands —
+            // see stashNaThen above. Every other kit runs
+            // it directly, exactly as before.
+            var proceed = function () {
             var copied = false;
             try {
               rEta.focus();
@@ -3791,6 +3909,9 @@
             recordLaunched("registrar");
             applyLaunchedBadge("registrar", Date.now());
             window.open(regFormLane.url, "_blank", "noopener");
+            };
+            if (naPayload) { stashNaThen(proceed); return; }
+            proceed();
           });
           rw.appendChild(
             h("div", { "class": "sf-actions" }, rFormBtn));
@@ -3872,7 +3993,18 @@
             rw.appendChild(gwrap);
           }
         }
-        if (!regFormLane && ri.registrarAbuse) {
+        // v1.0.80: a form lane whose desk still reads
+        // email (the lane's emailStays — today Alibaba
+        // Cloud alone) keeps the email presentation below
+        // its form kit: the abuse-contact row and the
+        // ready-to-send complaint, exactly as a no-lane
+        // registrar renders them, with a door heading in
+        // front. Form-only lanes are untouched: for them
+        // the email desk is retired and none of this
+        // renders.
+        var regEmailStays = !!(regFormLane &&
+          regFormLane.emailStays);
+        if ((!regFormLane || regEmailStays) && ri.registrarAbuse) {
           // Public 1.0.72 release (internal build .73): the
           // "Copy the abuse address" button is REMOVED
           // (queued-registrar-paste-mode.md item 1, Michael's
@@ -3881,7 +4013,16 @@
           // the button was a third copy of the same fact.
           rw.appendChild(mkRow("Abuse contact", ri.registrarAbuse));
         }
-        if (!regFormLane && a.registrarComplaint) {
+        if ((!regFormLane || regEmailStays) && a.registrarComplaint) {
+          if (regEmailStays) {
+            rw.appendChild(h("b", null,
+              "Or email it instead \u2014 " + regFormLane.label +
+              "'s abuse desk"));
+            rw.appendChild(h("p", { "class": "sf-note" },
+              "The same report by email, addressed to the " +
+              "abuse contact above. The form above stays " +
+              "available either way."));
+          }
           var rTa = h("textarea", { id: "sf-registrar-text" });
           rTa.readOnly = true;
           rTa.value = "To: " + a.registrarComplaint.to +
@@ -3899,7 +4040,7 @@
           var rPaste = pasteWarnEl(a.registrarComplaint);
           if (rPaste) rw.appendChild(rPaste);
           rw.appendChild(h("div", { "class": "sf-actions" }, rBtn));
-        } else if (!regFormLane && ri.registrarAbuse) {
+        } else if ((!regFormLane || regEmailStays) && ri.registrarAbuse) {
           rw.appendChild(h("p", { "class": "sf-note" },
             "No pre-written complaint for this registrar \u2014 " +
             "the abuse address above is the desk to write to " +
@@ -4366,6 +4507,48 @@
       }
     }
 
+    // v1.0.83: the domain-trace progress row. The chain
+    // below (traceSenderDomain → runLaneGating) routinely
+    // takes 10+ seconds — stacked probe timeouts and RDAP
+    // round trips — and until now the panel showed NOTHING
+    // while it ran: the registrar section popped in late
+    // (shoving the panel around mid-read) or never appeared,
+    // with no way to tell "still working" from "finished,
+    // no lane" (Michael's field report, Nov 24 2026). The
+    // row is a placeholder rendered with this render and
+    // inserted just above the PID section at the end of it
+    // (where placeAbovePid will land the real sections);
+    // its text updates as the chain moves from the domain
+    // trace to the website checks, and it is removed the
+    // moment the chain settles — success OR failure — so
+    // the sections take its place, or it vanishes silently
+    // on a failed trace, exactly today's no-lane outcome.
+    // It belongs to THIS render: every touch is gated on
+    // sfCurrentMsgKey === msgKey, so a stale chain can
+    // never write into a newer render's panel.
+    var traceRow = null, traceRowText = null;
+    var traceWanted = !!(window.SpamAvenger.traceSenderDomain &&
+      a.senderDomain);
+    function setTracePhase(text) {
+      if (sfCurrentMsgKey !== msgKey) return; // stale render
+      if (traceRowText) traceRowText.textContent = text;
+    }
+    function finishTraceRow() {
+      if (sfCurrentMsgKey !== msgKey) return; // stale render
+      if (traceRow && traceRow.parentNode) {
+        traceRow.parentNode.removeChild(traceRow);
+      }
+      traceRow = null;
+      traceRowText = null;
+    }
+    if (traceWanted) {
+      traceRowText = h("span", null,
+        "Checking the sender\u2019s domain\u2026 website " +
+        "and registrar lanes still loading.");
+      traceRow = h("div",
+        { "class": "sf-trace-row", "id": "sf-trace-row" },
+        h("div", { "class": "sf-spin" }), traceRowText);
+    }
     var tracePromise = Promise.resolve();
     if (window.SpamAvenger.traceSenderDomain && a.senderDomain) {
       try {
@@ -4377,19 +4560,27 @@
     }
     var traceChain = tracePromise.then(function () {
       if (sfCurrentMsgKey !== msgKey) return null; // stale render
+      setTracePhase("Checking the sender\u2019s website\u2026 " +
+        "website and registrar lanes still loading.");
       try { applyClassification(false); } catch (e) {}
       return runLaneGating();
     }).then(function () {
       if (sfCurrentMsgKey !== msgKey) return; // stale render
+      finishTraceRow();
       try { renderDomainTraceSections(); } catch (e) {}
       try { applyClassification(true); } catch (e) {}
-    }, function () {});
+    }, function () { finishTraceRow(); });
     // Public 1.0.72 release (internal build .73): the Show
     // details gate settles with this chain, on success OR
     // failure — renderDomainTraceSections has appended any
     // website / link detail rows by now, so a waiting toggle
     // opens on the complete fact list.
     traceChain.then(settleDetailsTrace, settleDetailsTrace);
+    // v1.0.83: the progress row settles with the chain too,
+    // on success OR failure (the handlers above already
+    // remove it on the paths they own; this is the belt
+    // and braces for any path they miss).
+    traceChain.then(finishTraceRow, finishTraceRow);
     // v1.0.38: color-code legend, right above the report buttons
     // and OUTSIDE the collapsed details block, so a first-time
     // user learns what green/blue mean before they have to pick.
@@ -4535,6 +4726,12 @@
             // every other lane's stash carries null here
             // and reportfill ignores it.
             godaddy: (extra && extra.godaddy) || null,
+            // v1.0.82: the nameabuse form payload (kit,
+            // label, reported domain, short evidence),
+            // supplied by the registrar lane's nameabuse
+            // kits the same way — null for every other
+            // lane, ignored by reportfill there.
+            nameabuse: (extra && extra.nameabuse) || null,
             savedAt: Date.now()
           } }, function () {
             // v1.0.31: the v1.0.30 callback never checked lastError,
@@ -5075,6 +5272,20 @@
         else renderDetailsForm();
       });
     })();
+    // v1.0.83: every synchronous lane is in the stack now —
+    // park the domain-trace progress row directly above the
+    // PID section, the exact slot placeAbovePid lands the
+    // website / registrar sections in when the trace
+    // settles (see the trace-row block above).
+    if (traceRow) {
+      var tracePidToggle = stack.querySelector(
+        "#sf-sec-pid-toggle");
+      if (tracePidToggle) {
+        stack.insertBefore(traceRow, tracePidToggle);
+      } else {
+        stack.appendChild(traceRow);
+      }
+    }
     // Public 1.0.72 release (internal build .73): every
     // synchronous lane is in the stack now — materialize
     // the Blocked lanes group from whatever the mail lane
